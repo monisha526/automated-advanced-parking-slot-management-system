@@ -1,0 +1,2 @@
+# automated-advanced-parking-slot-management-system
+Smart Parking Finder is a web app for finding, booking, and paying for parking spaces. Features include user authentication, location-based search with Google Maps, real-time availability, flexible payment gateways, and booking confirmation with QR codes. Built with HTML5, CSS3, and vanilla JavaScript—ready for instant deployment on static hosting 
