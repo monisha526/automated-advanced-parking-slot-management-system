@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Parking System - Login</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; text-align: center; }
+    h1 { color: darkblue; }
+    .login-form { max-width: 300px; margin: 0 auto; }
+    form input { margin-bottom: 10px; width: 100%; padding: 8px; }
+    button { padding: 8px 12px; background: blue; color: white; border: none; cursor: pointer; margin: 5px; }
+    .social-login { margin-top: 20px; }
+    .social-btn { width: 100%; padding: 10px; margin: 5px 0; border: none; cursor: pointer; font-size: 16px; }
+    .google { background: #db4437; color: white; }
+    .facebook { background: #4267b2; color: white; }
+    .email { background: #34a853; color: white; }
+  </style>
+</head>
+<body>
+  <h1>🚗 Smart Parking Finder - Login</h1>
+  <div class="login-form">
+    <label for="username">Username:</label><br>
+    <input type="text" id="username"><br>
+    <label for="password">Password:</label><br>
+    <input type="password" id="password"><br>
+    <button type="button" onclick="loginUser()">Login</button>
+    <button type="button" onclick="signupUser()">Signup</button>
+  </div>
+  <div class="social-login">
+    <p>Or login with:</p>
+    <button class="social-btn google" onclick="loginWithGoogle()">Login with Google</button>
+    <button class="social-btn facebook" onclick="loginWithFacebook()">Login with Facebook</button>
+    <button class="social-btn email" onclick="loginWithEmail()">Login with Email</button>
+  </div>
+  <p id="message"></p>
+  <script>
+    function loginUser() {
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+      if (username && password) {
+        localStorage.setItem('user', JSON.stringify({username}));
+        window.location.href = 'main.html';
+      } else {
+        document.getElementById("message").textContent = "Please enter username and password.";
+      }
+    }
+    function signupUser() {
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+      if (username && password) {
+        localStorage.setItem('user', JSON.stringify({username}));
+        window.location.href = 'main.html';
+      } else {
+        document.getElementById("message").textContent = "Please enter username and password.";
+      }
+    }
+    function loginWithGoogle() {
+      // Simulate Google login
+      alert("Redirecting to Google Sign-In...");
+      setTimeout(() => {
+        localStorage.setItem('user', JSON.stringify({username: 'GoogleUser'}));
+        window.location.href = 'main.html';
+      }, 1000);
+    }
+    function loginWithFacebook() {
+      // Simulate Facebook login
+      alert("Redirecting to Facebook Login...");
+      setTimeout(() => {
+        localStorage.setItem('user', JSON.stringify({username: 'FacebookUser'}));
+        window.location.href = 'main.html';
+      }, 1000);
+    }
+    function loginWithEmail() {
+      // Simulate email login
+      const email = prompt("Enter your email:");
+      if (email) {
+        alert("OTP sent to your email. (Simulated)");
+        const otp = prompt("Enter OTP:");
+        if (otp) {
+          localStorage.setItem('user', JSON.stringify({username: email}));
+          window.location.href = 'main.html';
+        }
+      }
+    }
+  </script>
+</body>
+</html>

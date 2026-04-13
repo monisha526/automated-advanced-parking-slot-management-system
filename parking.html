@@ -1,0 +1,114 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Parking System</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: darkblue; }
+    .section { margin-bottom: 30px; }
+    .parking-lot { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; }
+    .available { color: green; font-weight: bold; }
+    .book-btn { background: blue; color: white; padding: 8px 12px; border: none; cursor: pointer; }
+    .book-btn:disabled { background: gray; cursor: not-allowed; }
+    form input, form select, form button { margin-bottom: 10px; width: 250px; padding: 8px; }
+    .panel { border: 1px solid #ccc; padding: 15px; background: #f9f9f9; margin-top: 15px; }
+    .panel.hidden { display: none; }
+    .qr-code { width: 220px; height: 220px; border: 1px solid #ccc; margin-top: 15px; }
+    .confirmation { background: #e8f5e9; border-color: #81c784; }
+    .button-group button { margin-right: 10px; }
+    #map { height: 400px; width: 100%; margin-top: 15px; }
+    .login-form { max-width: 300px; margin: 0 auto; }
+    .notification { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; margin-bottom: 15px; }
+  </style>
+</head>
+<body>
+  <h1>🚗 Smart Parking Finder</h1>
+
+  <div id="notification" class="notification hidden"></div>
+
+  <div class="section">
+    <h2>User Login/Signup</h2>
+    <div id="loginPanel" class="login-form">
+      <label for="username">Username:</label><br>
+      <input type="text" id="username"><br>
+      <label for="password">Password:</label><br>
+      <input type="password" id="password"><br>
+      <button type="button" onclick="loginUser()">Login</button>
+      <button type="button" onclick="signupUser()">Signup</button>
+    </div>
+    <p id="userStatus">Not logged in</p>
+  </div>
+
+  <div class="section">
+    <h2>Find Nearby Parking</h2>
+    <label for="searchInput">Search by location:</label><br>
+    <input type="text" id="searchInput" placeholder="Enter location or landmark"><br>
+    <button type="button" onclick="searchParking()">Search</button>
+    <button type="button" onclick="resetSearch()">Show All</button>
+    <button type="button" onclick="getCurrentLocation()">Use My Location</button>
+    <div id="map"></div>
+  </div>
+
+  <div class="section">
+    <h2>Available Parking Lots</h2>
+    <div id="parkingList"></div>
+  </div>
+
+  <div id="bookingPanel" class="section panel hidden">
+    <h2>Book Slot In Advance</h2>
+    <p><strong>Selected lot:</strong> <span id="selectedLotName"></span></p>
+    <p><strong>Location:</strong> <span id="selectedLotLocation"></span></p>
+    <p><strong>Slots available:</strong> <span id="selectedLotSlots"></span></p>
+    <label for="slotCount">Choose slots to book:</label><br>
+    <select id="slotCount"></select><br>
+    <label for="bookingDate">Booking date & time:</label><br>
+    <input type="datetime-local" id="bookingDate"><br>
+    <button type="button" onclick="preparePayment()">Continue to Pay</button>
+    <button type="button" onclick="closeBookingPanel()">Cancel</button>
+  </div>
+
+  <div id="paymentPanel" class="section panel hidden">
+    <h2>Pay Online</h2>
+    <p><strong>Lot:</strong> <span id="paymentLotName"></span></p>
+    <p><strong>Amount:</strong> ₹<span id="paymentAmount"></span></p>
+    <label for="paymentGateway">Choose Payment Gateway:</label><br>
+    <select id="paymentGateway">
+      <option value="razorpay">Razorpay</option>
+      <option value="paytm">Paytm</option>
+      <option value="stripe">Stripe</option>
+    </select><br>
+    <label for="payerName">Name on payment:</label><br>
+    <input type="text" id="payerName" placeholder="Your name"><br>
+    <label for="payerEmail">Email:</label><br>
+    <input type="email" id="payerEmail" placeholder="you@example.com"><br>
+    <label for="cardNumber">Card number:</label><br>
+    <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000"><br>
+    <button type="button" onclick="payOnline()">Pay Now</button>
+  </div>
+
+  <div id="confirmationPanel" class="section panel hidden confirmation">
+    <h2>Booking Confirmed</h2>
+    <p id="confirmationText"></p>
+    <canvas id="qrCanvas" class="qr-code" width="220" height="220"></canvas>
+    <p>Show this QR code when you arrive.</p>
+    <button type="button" onclick="clearConfirmation()">Book Another Slot</button>
+  </div>
+
+  <div class="section">
+    <h2>Register Your Parking Lot</h2>
+    <form id="registerForm">
+      <label>Parking Lot Name:</label><br>
+      <input type="text" id="lotName"><br>
+      <label>Location:</label><br>
+      <input type="text" id="lotLocation"><br>
+      <label>Total Slots:</label><br>
+      <input type="number" id="lotSlots"><br>
+      <button type="button" onclick="registerLot()">Register</button>
+    </form>
+  </div>
+
+  <script src="parking.js"></script>
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script>
+</body>
+</html>

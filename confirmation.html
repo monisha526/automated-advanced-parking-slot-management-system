@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Parking System - Confirmation</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: darkblue; }
+    .panel { border: 1px solid #ccc; padding: 15px; background: #e8f5e9; margin-top: 15px; }
+    .qr-code { width: 220px; height: 220px; border: 1px solid #ccc; margin-top: 15px; }
+    button { background: blue; color: white; padding: 8px 12px; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>🚗 Smart Parking Finder - Confirmation</h1>
+  <div class="panel">
+    <h2>Booking Confirmed</h2>
+    <p id="confirmationText"></p>
+    <canvas id="qrCanvas" class="qr-code" width="220" height="220"></canvas>
+    <p>Show this QR code when you arrive.</p>
+    <button type="button" onclick="goHome()">Book Another Slot</button>
+  </div>
+  <script src="parking.js"></script>
+</body>
+</html>

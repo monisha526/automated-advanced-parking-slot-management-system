@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Parking System - Booking</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: darkblue; }
+    .panel { border: 1px solid #ccc; padding: 15px; background: #f9f9f9; margin-top: 15px; }
+    form input, form select, form button { margin-bottom: 10px; width: 250px; padding: 8px; }
+    button { background: blue; color: white; padding: 8px 12px; border: none; cursor: pointer; }
+    .slot-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 20px 0; }
+    .slot { width: 50px; height: 50px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
+    .slot.available { background: #4CAF50; color: white; }
+    .slot.booked { background: #f44336; color: white; cursor: not-allowed; }
+    .slot.selected { background: #2196F3; color: white; }
+    .legend { display: flex; gap: 20px; margin-bottom: 10px; }
+    .legend div { display: flex; align-items: center; gap: 5px; }
+    .legend .slot { width: 20px; height: 20px; }
+  </style>
+</head>
+<body>
+  <h1>🚗 Smart Parking Finder - Book Slot</h1>
+  <div class="panel">
+    <h2>Book Slot In Advance</h2>
+    <p><strong>Selected lot:</strong> <span id="selectedLotName"></span></p>
+    <p><strong>Location:</strong> <span id="selectedLotLocation"></span></p>
+    <p><strong>Price per slot:</strong> ₹<span id="selectedLotPrice"></span></p>
+    <p><strong>Slots available:</strong> <span id="selectedLotSlots"></span></p>
+    <label for="duration">Select duration:</label><br>
+    <select id="duration" onchange="updatePrice()">
+      <option value="1">1 Hour - ₹100</option>
+      <option value="2">2 Hours - ₹200</option>
+      <option value="3">3 Hours - ₹400</option>
+    </select><br>
+    <p><strong>Total base price:</strong> ₹<span id="totalBasePrice">0</span> (GST: ₹50)</p>
+    <div class="legend">
+      <div><div class="slot available"></div> Available</div>
+      <div><div class="slot booked"></div> Booked</div>
+      <div><div class="slot selected"></div> Selected</div>
+    </div>
+    <div id="slotGrid" class="slot-grid"></div>
+    <p>Selected slots: <span id="selectedSlotsCount">0</span></p>
+    <label for="bookingDate">Booking date & time:</label><br>
+    <input type="datetime-local" id="bookingDate"><br>
+    <button type="button" onclick="preparePayment()">Continue to Pay</button>
+    <button type="button" onclick="goBack()">Back</button>
+  </div>
+  <script src="parking.js"></script>
+  <script>
+    updatePrice(); // Initialize price
+  </script>
+</body>
+</html>

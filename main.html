@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Parking System - Main</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: darkblue; }
+    .section { margin-bottom: 30px; }
+    .parking-lot { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; }
+    .available { color: green; font-weight: bold; }
+    .book-btn { background: blue; color: white; padding: 8px 12px; border: none; cursor: pointer; }
+    .book-btn:disabled { background: gray; cursor: not-allowed; }
+    #map { height: 400px; width: 100%; margin-top: 15px; }
+    .notification { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; margin-bottom: 15px; }
+  </style>
+</head>
+<body>
+  <h1>🚗 Smart Parking Finder</h1>
+  <p>Welcome, <span id="userName"></span>! Find parking near you.</p>
+  <div id="notification" class="notification hidden"></div>
+  <button onclick="window.location.href='history.html'">View Booking History</button>
+
+  <div class="section">
+    <h2>Find Nearby Parking</h2>
+    <label for="searchInput">Search by location:</label><br>
+    <input type="text" id="searchInput" placeholder="Enter location or landmark"><br>
+    <button type="button" onclick="searchParking()">Search</button>
+    <button type="button" onclick="resetSearch()">Show All</button>
+    <button type="button" onclick="getCurrentLocation()">Use My Location</button>
+    <button type="button" onclick="showDirections()">Show Directions to Selected Lot</button>
+    <div id="map"></div>
+  </div>
+
+  <div class="section">
+    <h2>Available Parking Lots</h2>
+    <div id="parkingList"></div>
+  </div>
+
+  <script src="parking.js"></script>
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Parking System - Payment</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: darkblue; }
+    .panel { border: 1px solid #ccc; padding: 15px; background: #f9f9f9; margin-top: 15px; }
+    form input, form select, form button { margin-bottom: 10px; width: 250px; padding: 8px; }
+    button { background: blue; color: white; padding: 8px 12px; border: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>🚗 Smart Parking Finder - Payment</h1>
+  <div class="panel">
+    <h2>Pay Online</h2>
+    <p><strong>Lot:</strong> <span id="paymentLotName"></span></p>
+    <p><strong>Amount:</strong> ₹<span id="paymentAmount"></span></p>
+    <label for="paymentGateway">Choose Payment Method:</label><br>
+    <select id="paymentGateway" onchange="updatePaymentFields()">
+      <option value="razorpay">Razorpay (UPI/Card)</option>
+      <option value="paytm">Paytm (Wallet/UPI)</option>
+      <option value="stripe">Stripe (Card)</option>
+      <option value="gpay">Google Pay (UPI)</option>
+      <option value="phonepe">PhonePe (UPI/Wallet)</option>
+      <option value="netbanking">Net Banking</option>
+    </select><br>
+    <div id="paymentFields">
+      <label for="payerName">Name on payment:</label><br>
+      <input type="text" id="payerName" placeholder="Your name"><br>
+      <label for="payerEmail">Email:</label><br>
+      <input type="email" id="payerEmail" placeholder="you@example.com"><br>
+      <label for="cardNumber">Card number:</label><br>
+      <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000"><br>
+    </div>
+    <button type="button" onclick="payOnline()">Pay Now</button>
+    <button type="button" onclick="goBack()">Back</button>
+  </div>
+  <script src="parking.js"></script>
+  <script>
+    updatePaymentFields();
+  </script>
+</body>
+</html>
