@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Parking - Owner Login</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .login-container {
+      background: white;
+      padding: 40px;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      width: 400px;
+    }
+    .login-container h1 {
+      color: #667eea;
+      text-align: center;
+      margin-top: 0;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: #333;
+      font-weight: bold;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    .form-group input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #5568d3;
+    }
+    .message {
+      text-align: center;
+      margin-top: 15px;
+      color: #e74c3c;
+    }
+    .signup-link {
+      text-align: center;
+      margin-top: 20px;
+      color: #666;
+    }
+    .signup-link a {
+      color: #667eea;
+      text-decoration: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-container">
+  <h1>🚗 Owner Dashboard</h1>
+  
+  <div id="loginForm">
+    <h2 style="text-align:center; color:#333;">Login to Your Account</h2>
+    <div class="form-group">
+      <label for="ownerEmail">Email:</label>
+      <input type="email" id="ownerEmail" placeholder="owner@example.com">
+    </div>
+    <div class="form-group">
+      <label for="ownerPassword">Password:</label>
+      <input type="password" id="ownerPassword" placeholder="Enter your password">
+    </div>
+    <button onclick="ownerLogin()">Login</button>
+    <div class="message" id="loginMessage"></div>
+    <div class="signup-link">
+      Don't have an account? <a onclick="toggleForm()">Register here</a>
+    </div>
+  </div>
+
+  <div id="registerForm" style="display:none;">
+    <h2 style="text-align:center; color:#333;">Register Your Parking Lot</h2>
+    <div class="form-group">
+      <label for="lotName">Parking Lot Name:</label>
+      <input type="text" id="lotName" placeholder="City Center Parking">
+    </div>
+    <div class="form-group">
+      <label for="ownerName">Owner Name:</label>
+      <input type="text" id="ownerName" placeholder="Your Full Name">
+    </div>
+    <div class="form-group">
+      <label for="regEmail">Email:</label>
+      <input type="email" id="regEmail" placeholder="owner@example.com">
+    </div>
+    <div class="form-group">
+      <label for="regPassword">Password:</label>
+      <input type="password" id="regPassword" placeholder="Create a password">
+    </div>
+    <div class="form-group">
+      <label for="bankAccountNumber">Bank Account Number:</label>
+      <input type="text" id="bankAccountNumber" placeholder="Account number for payouts">
+    </div>
+    <div class="form-group">
+      <label for="commissionShare">Commission Share (%):</label>
+      <input type="number" id="commissionShare" placeholder="e.g., 20" min="0" max="100">
+    </div>
+    <button onclick="registerOwner()">Register</button>
+    <div class="message" id="registerMessage"></div>
+    <div class="signup-link">
+      Already have an account? <a onclick="toggleForm()">Login here</a>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  const auth = firebase.auth();
+
+  function toggleForm() {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    loginForm.style.display = loginForm.style.display === 'none' ? 'block' : 'none';
+    registerForm.style.display = registerForm.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function ownerLogin() {
+    const email = document.getElementById('ownerEmail').value.trim();
+    const password = document.getElementById('ownerPassword').value.trim();
+
+    if (!email || !password) {
+      document.getElementById('loginMessage').textContent = 'Please enter email and password';
+      return;
+    }
+
+    auth.signInWithEmailAndPassword(email, password)
+      .then(userCredential => {
+        localStorage.setItem('ownerEmail', email);
+        localStorage.setItem('ownerUid', userCredential.user.uid);
+        window.location.href = 'owner-dashboard.html';
+      })
+      .catch(error => {
+        document.getElementById('loginMessage').textContent = 'Login failed: ' + error.message;
+      });
+  }
+
+  function registerOwner() {
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value.trim();
+    const ownerName = document.getElementById('ownerName').value.trim();
+    const lotName = document.getElementById('lotName').value.trim();
+    const bankAccount = document.getElementById('bankAccountNumber').value.trim();
+    const commission = document.getElementById('commissionShare').value;
+
+    if (!email || !password || !ownerName || !lotName || !bankAccount || !commission) {
+      document.getElementById('registerMessage').textContent = 'Please fill all fields';
+      return;
+    }
+
+    auth.createUserWithEmailAndPassword(email, password)
+      .then(userCredential => {
+        const uid = userCredential.user.uid;
+        
+        db.collection('owners').doc(uid).set({
+          email: email,
+          ownerName: ownerName,
+          lotName: lotName,
+          bankAccount: bankAccount,
+          commissionShare: parseFloat(commission),
+          totalEarnings: 0,
+          totalRequested: 0,
+          createdAt: new Date(),
+          status: 'Active'
+        })
+        .then(() => {
+          document.getElementById('registerMessage').textContent = 'Registration successful! Logging in...';
+          setTimeout(() => {
+            localStorage.setItem('ownerEmail', email);
+            localStorage.setItem('ownerUid', uid);
+            window.location.href = 'owner-dashboard.html';
+          }, 2000);
+        })
+        .catch(error => {
+          document.getElementById('registerMessage').textContent = 'Registration failed: ' + error.message;
+        });
+      })
+      .catch(error => {
+        document.getElementById('registerMessage').textContent = 'Error: ' + error.message;
+      });
+  }
+</script>
+
+</body>
+</html>

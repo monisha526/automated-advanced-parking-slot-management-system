@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Login - Smart Parking</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    
+    .login-container {
+      background: white;
+      padding: 40px;
+      border-radius: 10px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      width: 100%;
+      max-width: 400px;
+    }
+    
+    h1 { 
+      text-align: center;
+      color: #667eea;
+      margin-bottom: 30px;
+      font-size: 28px;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: bold;
+    }
+    
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      transition: border 0.3s;
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .message {
+      padding: 12px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      display: none;
+    }
+    
+    .error { 
+      background: #ffebee; 
+      color: #c62828; 
+      display: block;
+    }
+    
+    .success { 
+      background: #e8f5e9; 
+      color: #2e7d32; 
+      display: block;
+    }
+    
+    .toggle-auth {
+      text-align: center;
+      margin-top: 20px;
+      color: #666;
+    }
+    
+    .toggle-auth button {
+      background: white;
+      color: #667eea;
+      border: 1px solid #667eea;
+      padding: 8px 20px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-container">
+  <h1>🔐 Admin Login</h1>
+  
+  <div id="errorMessage" class="message error"></div>
+  <div id="successMessage" class="message success"></div>
+
+  <!-- Login Form -->
+  <form id="loginForm" style="display: block;">
+    <div class="form-group">
+      <label for="email">Admin Email</label>
+      <input type="email" id="email" required placeholder="admin@parking.com">
+    </div>
+    
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" required placeholder="••••••••">
+    </div>
+    
+    <button type="submit">Login</button>
+  </form>
+
+  <!-- Register Form -->
+  <form id="registerForm" style="display: none;">
+    <div class="form-group">
+      <label for="regEmail">New Admin Email</label>
+      <input type="email" id="regEmail" required placeholder="admin@parking.com">
+    </div>
+    
+    <div class="form-group">
+      <label for="regPassword">Create Password</label>
+      <input type="password" id="regPassword" required placeholder="••••••••" minlength="6">
+    </div>
+    
+    <div class="form-group">
+      <label for="regConfirm">Confirm Password</label>
+      <input type="password" id="regConfirm" required placeholder="••••••••" minlength="6">
+    </div>
+    
+    <button type="submit">Create Account</button>
+  </form>
+
+  <div class="toggle-auth">
+    <p>
+      <span id="toggleText">Don't have an account?</span>
+      <button type="button" onclick="toggleAuthForm()">Sign Up</button>
+    </p>
+  </div>
+</div>
+
+<!-- Firebase Scripts -->
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDfJfJfJfJfJfJfJfJfJfJfJfJfJfJfJf",
+    projectId: "groundstation-494",
+    authDomain: "groundstation-494.firebaseapp.com",
+    storageBucket: "groundstation-494.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:groundstation-494"
+  };
+
+  const app = firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+  // Check if admin already logged in
+  window.addEventListener('load', () => {
+    const adminEmail = localStorage.getItem('adminEmail');
+    if (adminEmail) {
+      window.location.href = 'admin-dashboard.html';
+    }
+  });
+
+  // Login Form
+  document.getElementById('loginForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+
+    auth.signInWithEmailAndPassword(email, password)
+      .then(() => {
+        localStorage.setItem('adminEmail', email);
+        showSuccess('Login successful! Redirecting...');
+        setTimeout(() => {
+          window.location.href = 'admin-dashboard.html';
+        }, 1500);
+      })
+      .catch(error => {
+        showError(`Login failed: ${error.message}`);
+      });
+  });
+
+  // Register Form
+  document.getElementById('registerForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = document.getElementById('regEmail').value;
+    const password = document.getElementById('regPassword').value;
+    const confirm = document.getElementById('regConfirm').value;
+
+    if (password !== confirm) {
+      showError('Passwords do not match');
+      return;
+    }
+
+    auth.createUserWithEmailAndPassword(email, password)
+      .then(() => {
+        localStorage.setItem('adminEmail', email);
+        showSuccess('Account created! Redirecting...');
+        setTimeout(() => {
+          window.location.href = 'admin-dashboard.html';
+        }, 1500);
+      })
+      .catch(error => {
+        showError(`Registration failed: ${error.message}`);
+      });
+  });
+
+  function toggleAuthForm() {
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const toggleText = document.getElementById('toggleText');
+    const toggleBtn = document.querySelector('.toggle-auth button');
+
+    if (loginForm.style.display === 'block') {
+      loginForm.style.display = 'none';
+      registerForm.style.display = 'block';
+      toggleText.textContent = 'Already have an account?';
+      toggleBtn.textContent = 'Sign In';
+    } else {
+      loginForm.style.display = 'block';
+      registerForm.style.display = 'none';
+      toggleText.textContent = "Don't have an account?";
+      toggleBtn.textContent = 'Sign Up';
+    }
+    
+    clearMessages();
+  }
+
+  function showError(message) {
+    const errorEl = document.getElementById('errorMessage');
+    errorEl.textContent = message;
+    errorEl.style.display = 'block';
+    setTimeout(() => errorEl.style.display = 'none', 4000);
+  }
+
+  function showSuccess(message) {
+    const successEl = document.getElementById('successMessage');
+    successEl.textContent = message;
+    successEl.style.display = 'block';
+  }
+
+  function clearMessages() {
+    document.getElementById('errorMessage').style.display = 'none';
+    document.getElementById('successMessage').style.display = 'none';
+  }
+</script>
+
+</body>
+</html>

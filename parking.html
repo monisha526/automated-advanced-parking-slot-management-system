@@ -4,23 +4,95 @@
   <meta charset="UTF-8">
   <title>Smart Parking System</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h1 { color: darkblue; }
-    .section { margin-bottom: 30px; }
-    .parking-lot { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; }
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
+    h1 { color: darkblue; text-align: center; }
+    .section { margin-bottom: 30px; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .parking-lot { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; background: white; border-radius: 5px; }
+    .parking-lot:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
     .available { color: green; font-weight: bold; }
-    .book-btn { background: blue; color: white; padding: 8px 12px; border: none; cursor: pointer; }
+    .book-btn { background: #4facfe; color: white; padding: 8px 12px; border: none; cursor: pointer; border-radius: 3px; }
+    .book-btn:hover { background: #0080ff; }
     .book-btn:disabled { background: gray; cursor: not-allowed; }
-    form input, form select, form button { margin-bottom: 10px; width: 250px; padding: 8px; }
-    .panel { border: 1px solid #ccc; padding: 15px; background: #f9f9f9; margin-top: 15px; }
+    form input, form select, form button { margin-bottom: 10px; width: 250px; padding: 8px; border: 1px solid #ddd; border-radius: 3px; }
+    form button { background: #4facfe; color: white; border: none; cursor: pointer; }
+    form button:hover { background: #0080ff; }
+    .panel { border: 1px solid #ddd; padding: 15px; background: #f9f9f9; margin-top: 15px; border-radius: 5px; }
     .panel.hidden { display: none; }
     .qr-code { width: 220px; height: 220px; border: 1px solid #ccc; margin-top: 15px; }
     .confirmation { background: #e8f5e9; border-color: #81c784; }
     .button-group button { margin-right: 10px; }
-    #map { height: 400px; width: 100%; margin-top: 15px; }
+    #map { 
+      height: 500px; 
+      width: 100%; 
+      margin-top: 15px; 
+      border-radius: 5px; 
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      border: 1px solid #ddd;
+    }
     .login-form { max-width: 300px; margin: 0 auto; }
-    .notification { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; margin-bottom: 15px; }
+    .notification { background: #fff3cd; border: 1px solid #ffeaa7; padding: 10px; margin-bottom: 15px; border-radius: 3px; }
+    .notification.hidden { display: none; }
+    .parking-slot { 
+      width: 60px; 
+      height: 60px; 
+      border: 2px solid #333; 
+      border-radius: 5px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-weight: bold; 
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .parking-slot:hover { 
+      transform: scale(1.1);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .slot-available { 
+      background-color: #4caf50; 
+      color: white; 
+      border-color: #2e7d32;
+    }
+    .slot-occupied { 
+      background-color: #f44336; 
+      color: white; 
+      border-color: #c62828;
+    }
+    .slot-reserved { 
+      background-color: #ff9800; 
+      color: white; 
+      border-color: #e65100;
+    }
+    .location-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .location-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+    .location-btn:active {
+      transform: translateY(0);
+    }
   </style>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js"></script>
+  <!-- QR Code Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Google Maps API -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
 </head>
 <body>
   <h1>🚗 Smart Parking Finder</h1>
@@ -47,68 +119,95 @@
     <button type="button" onclick="searchParking()">Search</button>
     <button type="button" onclick="resetSearch()">Show All</button>
     <button type="button" onclick="getCurrentLocation()">Use My Location</button>
-    <div id="map"></div>
-  </div>
-
+    
+    <div style="margin-top: 15px; margin-bottom: 15px;">
+      <p><strong>Quick Search by Location:</strong></p>
+      <div id="locationFilters" style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button type="button" class="location-btn" onclick="filterByLocation('Beach')">🏖️ Beach</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Mall')">🛍️ Mall</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Temple')">🕉️ Temple</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Station')">🚂 Station</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Hospital')">🏥 Hospital</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Market')">🏪 Market</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Park')">🌳 Park</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('School')">🎓 School</button>
+      </div>
+    </div>
   <div class="section">
-    <h2>Available Parking Lots</h2>
-    <div id="parkingList"></div>
-  </div>
+    <h2>🅿️ Parking Lots</h2>
+    <script>
+    let parkingLots = [
+      {name: "City Center Parking", location: "Downtown", slots: 15},
+      {name: "Airport Parking", location: "Airport Road", slots: 10},
+      {name: "Beachside Parking", location: "Beach", slots: 13},
+      {name: "Mall Parking", location: "Mall", slots: 12},
+      {name: "Temple Parking", location: "Temple", slots: 14},
+      {name: "Station Parking", location: "Station", slots: 11},
+      {name: "Hospital Parking", location: "Hospital", slots: 10},
+      {name: "Market Parking", location: "Market", slots: 16},
+      {name: "Park Parking", location: "Park", slots: 22},
+      {name: "School Parking", location: "School", slots: 15}
+    ];
+    </script>
+    <div id="parkingList"></div>  
+    <script>
+      renderParkingLots();
+    function renderParkingLots() {
+      let list = document.getElementById("parkingList");
+      list.innerHTML = "";
+      parkingLots.forEach((lot, index) => {
+        list.innerHTML += `
+          <div class="parking-lot">
+            <h3>${lot.name}</h3>
+            <p>Location: ${lot.location}</p>
+            <p>Slots Available: <span class="available">${lot.slots}</span></p>
+            <button class="book-btn" ${lot.slots === 0 ? "disabled" : ""}
+              onclick="bookSlot(${index})">Pre-book Slot</button>
+          </div>
+        `;
+      });
+    } 
+    function bookSlot(index) {
+      const lot = parkingLots[index];
+      if (lot.slots > 0) {
+        lot.slots -= 1;
 
-  <div id="bookingPanel" class="section panel hidden">
-    <h2>Book Slot In Advance</h2>
-    <p><strong>Selected lot:</strong> <span id="selectedLotName"></span></p>
-    <p><strong>Location:</strong> <span id="selectedLotLocation"></span></p>
-    <p><strong>Slots available:</strong> <span id="selectedLotSlots"></span></p>
-    <label for="slotCount">Choose slots to book:</label><br>
-    <select id="slotCount"></select><br>
-    <label for="bookingDate">Booking date & time:</label><br>
-    <input type="datetime-local" id="bookingDate"><br>
-    <button type="button" onclick="preparePayment()">Continue to Pay</button>
-    <button type="button" onclick="closeBookingPanel()">Cancel</button>
-  </div>
+        const prepaidAmount = 100;
+        const paymentData = {
+          lotName: lot.name,
+          amount: prepaidAmount,
+          ownerShare: prepaidAmount * 0.5,
+          platformShare: prepaidAmount * 0.5
+        };
 
-  <div id="paymentPanel" class="section panel hidden">
-    <h2>Pay Online</h2>
-    <p><strong>Lot:</strong> <span id="paymentLotName"></span></p>
-    <p><strong>Amount:</strong> ₹<span id="paymentAmount"></span></p>
-    <label for="paymentGateway">Choose Payment Gateway:</label><br>
-    <select id="paymentGateway">
-      <option value="razorpay">Razorpay</option>
-      <option value="paytm">Paytm</option>
-      <option value="stripe">Stripe</option>
-    </select><br>
-    <label for="payerName">Name on payment:</label><br>
-    <input type="text" id="payerName" placeholder="Your name"><br>
-    <label for="payerEmail">Email:</label><br>
-    <input type="email" id="payerEmail" placeholder="you@example.com"><br>
-    <label for="cardNumber">Card number:</label><br>
-    <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000"><br>
-    <button type="button" onclick="payOnline()">Pay Now</button>
-  </div>
-
-  <div id="confirmationPanel" class="section panel hidden confirmation">
-    <h2>Booking Confirmed</h2>
-    <p id="confirmationText"></p>
-    <canvas id="qrCanvas" class="qr-code" width="220" height="220"></canvas>
-    <p>Show this QR code when you arrive.</p>
-    <button type="button" onclick="clearConfirmation()">Book Another Slot</button>
-  </div>
-
+        localStorage.setItem('parkingPayment', JSON.stringify(paymentData));
+        window.location.href = 'payment.html';
+      }
+    }     
+    function registerLot() {
+      let name = document.getElementById("lotName").value;
+      let location = document.getElementById("lotLocation").value;
+      let slots = parseInt(document.getElementById("lotSlots").value);
+      if(name && location && slots > 0){
+        parkingLots.push({name, location, slots});
+        renderParkingLots();
+        alert("Parking lot registered successfully!");
+        document.getElementById("registerForm").reset();
+      } else {
+        alert("Please fill all fields with valid data.");
+      }
+    }
+    </script>
   <div class="section">
     <h2>Register Your Parking Lot</h2>
     <form id="registerForm">
-      <label>Parking Lot Name:</label><br>
+      <label>Parking Lot Name:</label>
       <input type="text" id="lotName"><br>
-      <label>Location:</label><br>
+      <label>Location:</label>
       <input type="text" id="lotLocation"><br>
-      <label>Total Slots:</label><br>
+      <label>Total Slots:</label>
       <input type="number" id="lotSlots"><br>
-      <button type="button" onclick="registerLot()">Register</button>
-    </form>
-  </div>
-
-  <script src="parking.js"></script>
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script>
-</body>
-</html>
+      <button type="button" onclick="registerLot()">
+        Register</button>
+    </form> 
+     </div>

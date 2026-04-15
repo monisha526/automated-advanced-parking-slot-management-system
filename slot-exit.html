@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Parking - Exit Slot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 15px;
+      padding: 40px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    .header h1 {
+      color: #667eea;
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    
+    .booking-details {
+      background: #f9f9f9;
+      border-left: 4px solid #667eea;
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 5px;
+    }
+    
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    
+    .detail-row label {
+      color: #666;
+      font-weight: bold;
+    }
+    
+    .detail-row span {
+      color: #333;
+    }
+    
+    .timer {
+      text-align: center;
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .timer h3 {
+      color: #856404;
+      margin-bottom: 10px;
+    }
+    
+    .time-remaining {
+      font-size: 32px;
+      font-weight: bold;
+      color: #f44336;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .button-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    
+    button {
+      padding: 15px 25px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-exit {
+      background: #4caf50;
+      color: white;
+      grid-column: 1 / 3;
+    }
+    
+    .btn-exit:hover {
+      background: #45a049;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+    }
+    
+    .btn-continue {
+      background: #2196F3;
+      color: white;
+    }
+    
+    .btn-continue:hover {
+      background: #0b7dda;
+      transform: translateY(-2px);
+    }
+    
+    .btn-cancel {
+      background: #f44336;
+      color: white;
+    }
+    
+    .btn-cancel:hover {
+      background: #da190b;
+      transform: translateY(-2px);
+    }
+    
+    .warning {
+      background: #ffebee;
+      border: 2px solid #f44336;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+      color: #c62828;
+      font-size: 14px;
+    }
+    
+    .warning strong {
+      display: block;
+      margin-bottom: 5px;
+    }
+    
+    .overstay-info {
+      display: none;
+      background: #ffebee;
+      border: 2px solid #f44336;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .overstay-info.show {
+      display: block;
+    }
+    
+    .fine-amount {
+      font-size: 36px;
+      color: #f44336;
+      font-weight: bold;
+      text-align: center;
+      margin: 15px 0;
+    }
+    
+    .fine-breakdown {
+      font-size: 13px;
+      color: #666;
+      text-align: center;
+      margin-top: 10px;
+    }
+    
+    .success-message {
+      display: none;
+      background: #e8f5e9;
+      border: 2px solid #4caf50;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .success-message.show {
+      display: block;
+    }
+    
+    .success-message h3 {
+      color: #2e7d32;
+      margin-bottom: 10px;
+    }
+    
+    .qr-section {
+      text-align: center;
+      padding: 20px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    
+    #exitQR {
+      display: inline-block;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>🚗 Exit Parking Slot</h1>
+    <p>Complete your parking session</p>
+  </div>
+
+  <!-- Booking Details -->
+  <div class="booking-details">
+    <div class="detail-row">
+      <label>Booking ID:</label>
+      <span id="bookingId">--</span>
+    </div>
+    <div class="detail-row">
+      <label>Parking Lot:</label>
+      <span id="lotName">--</span>
+    </div>
+    <div class="detail-row">
+      <label>Entry Time:</label>
+      <span id="entryTime">--</span>
+    </div>
+    <div class="detail-row">
+      <label>Booked Until:</label>
+      <span id="bookedUntil">--</span>
+    </div>
+    <div class="detail-row">
+      <label>Booked Amount:</label>
+      <span id="bookedAmount">₹--</span>
+    </div>
+  </div>
+
+  <!-- Timer -->
+  <div class="timer">
+    <h3>Time Remaining</h3>
+    <div class="time-remaining" id="timeRemaining">00:00:00</div>
+  </div>
+
+  <!-- Warning if overstay -->
+  <div class="warning" id="warningBox" style="display:none;">
+    <strong>⚠️ WARNING: You are overstaying!</strong>
+    <p>Additional charges will be applied: ₹20 for first 10 minutes + ₹2 per minute</p>
+  </div>
+
+  <!-- Overstay Information -->
+  <div class="overstay-info" id="overstayInfo">
+    <h3>Overstay Charges</h3>
+    <p>Overstay Duration: <strong id="overstayDuration">--</strong></p>
+    <div class="fine-amount" id="fineAmount">₹0</div>
+    <div class="fine-breakdown">
+      <p>You will be charged for the additional time parked.</p>
+      <p>Minimum: ₹20 for 10 minutes | Extra: ₹2 per minute</p>
+    </div>
+  </div>
+
+  <!-- Success Message -->
+  <div class="success-message" id="successMessage">
+    <h3>✓ Thank you for using Smart Parking!</h3>
+    <p>Your exit has been recorded. A receipt has been sent to your email.</p>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="button-group" id="buttonGroup">
+    <button class="btn-continue" onclick="continueParking()">Continue Parking</button>
+    <button class="btn-cancel" onclick="goBack()">Back</button>
+    <button class="btn-exit" onclick="completeExit()">EXIT VEHICLE</button>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+
+  const app = firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  let bookingData = null;
+  let timerInterval = null;
+
+  // Initialize page
+  window.addEventListener('load', () => {
+    const bookingId = new URLSearchParams(window.location.search).get('bookingId');
+    if (bookingId) {
+      loadBookingData(bookingId);
+    } else {
+      alert('No booking found. Redirecting...');
+      window.location.href = 'main.html';
+    }
+  });
+
+  function loadBookingData(bookingId) {
+    db.collection('bookings').doc(bookingId).get().then(doc => {
+      if (doc.exists) {
+        bookingData = {id: bookingId, ...doc.data()};
+        displayBookingDetails();
+        startTimer();
+      } else {
+        alert('Booking not found');
+      }
+    });
+  }
+
+  function displayBookingDetails() {
+    const booking = bookingData;
+    document.getElementById('bookingId').textContent = bookingData.id.substring(0, 12) + '...';
+    document.getElementById('lotName').textContent = booking.lotName || 'Unknown Lot';
+    
+    const entryDate = booking.entryTime ? new Date(booking.entryTime.toDate()) : new Date();
+    document.getElementById('entryTime').textContent = entryDate.toLocaleTimeString();
+    
+    const exitDate = booking.bookingEndTime ? new Date(booking.bookingEndTime.toDate()) : new Date();
+    document.getElementById('bookedUntil').textContent = exitDate.toLocaleTimeString();
+    
+    document.getElementById('bookedAmount').textContent = '₹' + (booking.amount || 0);
+  }
+
+  function startTimer() {
+    updateTimer();
+    timerInterval = setInterval(updateTimer, 1000);
+  }
+
+  function updateTimer() {
+    if (!bookingData || !bookingData.bookingEndTime) return;
+    
+    const now = new Date();
+    const endTime = new Date(bookingData.bookingEndTime.toDate());
+    const diff = endTime - now;
+    
+    if (diff < 0) {
+      // Overstay
+      const overstayMs = -diff;
+      const overstaySeconds = Math.floor(overstayMs / 1000);
+      const overstayMinutes = Math.floor(overstaySeconds / 60);
+      const overstayHours = Math.floor(overstayMinutes / 60);
+      
+      const displayMins = overstayMinutes % 60;
+      const displaySecs = overstaySeconds % 60;
+      
+      document.getElementById('timeRemaining').textContent = `-${String(overstayHours).padStart(2, '0')}:${String(displayMins).padStart(2, '0')}:${String(displaySecs).padStart(2, '0')}`;
+      document.getElementById('timeRemaining').style.color = '#f44336';
+      
+      document.getElementById('warningBox').style.display = 'block';
+      showOverstayInfo(overstayMinutes);
+    } else {
+      // Time remaining
+      const seconds = Math.floor(diff / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      
+      const displayMins = minutes % 60;
+      const displaySecs = seconds % 60;
+      
+      document.getElementById('timeRemaining').textContent = `${String(hours).padStart(2, '0')}:${String(displayMins).padStart(2, '0')}:${String(displaySecs).padStart(2, '0')}`;
+      document.getElementById('timeRemaining').style.color = '#4caf50';
+      
+      document.getElementById('warningBox').style.display = 'none';
+      document.getElementById('overstayInfo').classList.remove('show');
+    }
+  }
+
+  function showOverstayInfo(overstayMinutes) {
+    const hours = Math.floor(overstayMinutes / 60);
+    const mins = overstayMinutes % 60;
+    const duration = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    
+    document.getElementById('overstayDuration').textContent = duration;
+    
+    // Calculate fine
+    let fine = 20; // Base ₹20
+    if (overstayMinutes > 10) {
+      const extra = overstayMinutes - 10;
+      fine += extra * 2;
+    }
+    
+    document.getElementById('fineAmount').textContent = '₹' + fine;
+    document.getElementById('overstayInfo').classList.add('show');
+  }
+
+  function calculateLateFee() {
+    if (!bookingData || !bookingData.bookingEndTime) return 0;
+    
+    const now = new Date();
+    const endTime = new Date(bookingData.bookingEndTime.toDate());
+    const overstayMs = now - endTime;
+    
+    if (overstayMs <= 0) return 0;
+    
+    const overstayMinutes = Math.ceil(overstayMs / (1000 * 60));
+    let fine = 20; // Minimum ₹20
+    
+    if (overstayMinutes > 10) {
+      const extra = overstayMinutes - 10;
+      fine += extra * 2;
+    }
+    
+    return fine;
+  }
+
+  function completeExit() {
+    const lateFee = calculateLateFee();
+    const newTotal = (bookingData.amount || 0) + lateFee;
+    
+    db.collection('bookings').doc(bookingData.id).update({
+      actualExitTime: new Date(),
+      lateFee: lateFee,
+      newTotal: newTotal,
+      status: 'Completed'
+    }).then(() => {
+      clearInterval(timerInterval);
+      
+      // Show success message
+      document.getElementById('buttonGroup').style.display = 'none';
+      document.getElementById('warningBox').style.display = 'none';
+      document.getElementById('successMessage').classList.add('show');
+      
+      // Update display
+      if (lateFee > 0) {
+        document.getElementById('successMessage').innerHTML = `
+          <h3>✓ Exit Recorded Successfully</h3>
+          <p>Original Amount: ₹${bookingData.amount}</p>
+          <p style="color:#f44336; font-size:18px;"><strong>Overstay Fine: +₹${lateFee}</strong></p>
+          <p style="font-size:20px; margin-top:10px;"><strong>Total: ₹${newTotal}</strong></p>
+          <p style="margin-top:15px; font-size:13px;">A receipt has been sent to your email.</p>
+        `;
+      }
+      
+      setTimeout(() => {
+        window.location.href = 'main.html';
+      }, 5000);
+    });
+  }
+
+  function continueParking() {
+    // Extend booking for another hour (example)
+    const hours = 1;
+    const newEndTime = new Date(bookingData.bookingEndTime.toDate());
+    newEndTime.setHours(newEndTime.getHours() + hours);
+    
+    db.collection('bookings').doc(bookingData.id).update({
+      bookingEndTime: newEndTime,
+      amount: (bookingData.amount || 0) + (100 * hours) // Add ₹100 per hour
+    }).then(() => {
+      bookingData.bookingEndTime = newEndTime;
+      displayBookingDetails();
+      alert(`Booking extended by ${hours} hour(s). Additional charge: ₹${100 * hours}`);
+    });
+  }
+
+  function goBack() {
+    window.location.href = 'main.html';
+  }
+
+  function payOnline() {
+    const payerName = document.getElementById("payerName").value.trim();
+    const payerEmail = document.getElementById("payerEmail").value.trim();
+    const gateway = document.getElementById("paymentGateway").value;
+
+    if (!payerName || !payerEmail) {
+      alert("Please fill in name and email.");
+      return;
+    }
+
+    // Validate payment details
+    let paymentDetail = "";
+    if (gateway === 'netbanking') {
+      const bankName = document.getElementById("bankName").value.trim();
+      const accountNumber = document.getElementById("accountNumber").value.trim();
+      if (!bankName || !accountNumber) {
+        alert("Please fill in bank details.");
+        return;
+      }
+      paymentDetail = `Bank: ${bankName}, Account: ${accountNumber}`;
+    } else if (['razorpay', 'paytm', 'gpay', 'phonepe'].includes(gateway)) {
+      const upiId = document.getElementById("upiId").value.trim();
+      if (!upiId) {
+        alert("Please enter UPI ID.");
+        return;
+      }
+      paymentDetail = `UPI: ${upiId}`;
+    } else {
+      const cardNumber = document.getElementById("cardNumber").value.trim();
+      if (!cardNumber || cardNumber.replace(/\s+/g, "").length < 12) {
+        alert("Please enter a valid card number.");
+        return;
+      }
+      paymentDetail = `Card: **** **** **** ${cardNumber.slice(-4)}`;
+    }
+
+    // Simulate payment processing
+    alert(`Processing payment via ${gateway}...`);
+    
+    setTimeout(async () => {
+      const lotIndex = parseInt(localStorage.getItem('selectedLotIndex'), 10);
+      const slots = JSON.parse(localStorage.getItem('selectedSlots'));
+      const bookingDate = localStorage.getItem('bookingDate');
+      const duration = localStorage.getItem('duration');
+      const amount = parseInt(localStorage.getItem('totalAmount'), 10);
+
+      // Update parking lot slots
+      parkingLots[lotIndex].slots -= slots.length;
+      localStorage.setItem('parkingLots', JSON.stringify(parkingLots));
+
+      // Calculate booking end time (current time + duration)
+      const durationHours = parseInt(duration) || 1;
+      const bookingEndTime = new Date();
+      bookingEndTime.setHours(bookingEndTime.getHours() + durationHours);
+
+      // Create booking data for Firestore
+      const bookingData = {
+        lotName: parkingLots[lotIndex].name,
+        slots: slots.length,
+        amount: amount,
+        customerName: payerName,
+        customerEmail: payerEmail,
+        paymentMethod: gateway,
+        entryTime: new Date(),
+        bookingEndTime: bookingEndTime,
+        status: 'Active',
+        lateFee: 0,
+        totalAmount: amount
+      };
+
+      try {
+        // Save booking to Firestore
+        const docRef = await db.collection("bookings").add(bookingData);
+        const bookingId = docRef.id;
+        
+        console.log("Booking saved with ID:", bookingId);
+        
+        // Store booking ID for slot exit
+        localStorage.setItem('lastBookingId', bookingId);
+        
+        // Save booking data for confirmation page
+        localStorage.setItem('confirmation', JSON.stringify({
+          ...bookingData,
+          bookingId: bookingId
+        }));
+
+        // Add to history
+        const history = JSON.parse(localStorage.getItem('bookingHistory')) || [];
+        history.push({
+          ...bookingData,
+          bookingId: bookingId,
+          date: bookingDate,
+          duration: duration + ' hours'
+        });
+        localStorage.setItem('bookingHistory', JSON.stringify(history));
+
+        // ===== CLOUD FEATURES INTEGRATION =====
+        // 1. Save customer data
+        saveCustomerData({
+          name: payerName,
+          email: payerEmail,
+          phone: '' // Add phone field if available
+        }).then(customerId => {
+          // 2. Update customer after booking
+          updateCustomerAfterBooking(customerId, amount);
+        });
+
+        // 3. Generate and save receipt
+        const paymentData = {
+          payerName: payerName,
+          payerEmail: payerEmail,
+          gateway: gateway
+        };
+        generateReceipt(bookingData, paymentData);
+
+        // 4. Send notifications
+        sendBookingNotification(bookingData);
+        sendEmailNotification(payerEmail, 'Parking Booking Confirmed', 
+          `Your parking slot at ${bookingData.lotName} is confirmed. Amount: ₹${amount}`);
+
+        // Redirect to confirmation
+        window.location.href = 'confirmation.html';
+        
+      } catch (error) {
+        console.error("Error saving booking:", error);
+        alert("Error processing booking. Please try again.");
+      }
+    }, 2000);
+  }
+</script>
+
+</body>
+</html>

@@ -31,13 +31,107 @@
     <button type="button" onclick="showDirections()">Show Directions to Selected Lot</button>
     <div id="map"></div>
   </div>
-
+<div style="margin-top: 15px; margin-bottom: 15px;">
+      <p><strong>Quick Search by Location:</strong></p>
+      <div id="locationFilters" style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button type="button" class="location-btn" onclick="filterByLocation('Beach')">🏖️ Beach</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Mall')">🛍️ Mall</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Temple')">🕉️ Temple</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Station')">🚂 Station</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Hospital')">🏥 Hospital</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Market')">🏪 Market</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('Park')">🌳 Park</button>
+        <button type="button" class="location-btn" onclick="filterByLocation('School')">🎓 School</button>
+      </div>
+    </div>
   <div class="section">
     <h2>Available Parking Lots</h2>
-    <div id="parkingList"></div>
-  </div>
+    <script>
+    let parkingLots = [
+      {name: "City Center Parking", location: "Downtown", slots: 15},
+      {name: "Airport Parking", location: "Airport Road", slots: 10},
+      {name: "Beachside Parking", location: "Beach", slots: 13},
+      {name: "Mall Parking", location: "Mall", slots: 22},
+      {name: "Temple Parking", location: "Temple", slots: 44},
+      {name: "Station Parking", location: "Station", slots: 15},
+      {name: "Hospital Parking", location: "Hospital", slots: 10},
+      {name: "Market Parking", location: "Market", slots: 16},
+      {name: "Park Parking", location: "Park", slots: 12},
+      {name: "School Parking", location: "School", slots: 15}
+    ];
+    </script>
+    <script src="parking.js"></script>
+  </div>  
+    <div id="parkingList"></div> 
+    <script>
+     renderParkingLots();
+    function renderParkingLots() {
+      let list = document.getElementById("parkingList");
+      list.innerHTML = "";
+      parkingLots.forEach((lot, index) => {
+        list.innerHTML += `
+          <div class="parking-lot">
+            <h3>${lot.name}</h3>
+            <p>Location: ${lot.location}</p>
+            <p>Slots Available: <span class="available">${lot.slots}</span></p>
+            <button class="book-btn" ${lot.slots === 0 ? "disabled" : ""}
+              onclick="bookSlot(${index})">Pre-book Slot</button>
+          </div>
+        `;
+      });
+    } 
+    function bookSlot(index) {
+      const lot = parkingLots[index];
+      if (lot.slots > 0) {
+        lot.slots -= 1;
 
-  <script src="parking.js"></script>
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap"></script>
+        const prepaidAmount = 40;
+        const paymentData = {
+          lotName: lot.name,
+          amount: prepaidAmount,
+          ownerShare: prepaidAmount * 0.5,
+          platformShare: prepaidAmount * 0.5
+        };
+
+        localStorage.setItem('parkingPayment', JSON.stringify(paymentData));
+        window.location.href = 'payment.html';
+      }
+    }     
+    function registerLot() {
+      let name = document.getElementById("lotName").value;
+      let location = document.getElementById("lotLocation").value;
+      let slots = parseInt(document.getElementById("lotSlots").value);
+      if(name && location && slots > 0){
+        parkingLots.push({name, location, slots});
+        renderParkingLots();
+        alert("Parking lot registered successfully!");
+        document.getElementById("registerForm").reset();
+      } else {
+        alert("Please fill all fields with valid data.");
+      }
+    }
+    </script>
+    <div class="section">
+    <h2>🅿️ Available Parking Slots (Visual)</h2>
+    <div id="slotsDisplay" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px; margin-top: 15px;">
+    </div> 
+    <div style="margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px;">
+      <p><strong>Slot Status Legend:</strong></p>
+      <p>🟩 <span style="color: green; font-weight: bold;">Green</span> = Available</p>
+      <p>🟥 <span style="color: red; font-weight: bold;">Red</span> = Occupied</p>
+      <p>🟨 <span style="color: orange; font-weight: bold;">Orange</span> = Reserved</p>
+    </div>
+    <h2>Register Your Parking Lot</h2>
+    <form id="registerForm">
+      <label>Parking Lot Name:</label>
+      <input type="text" id="lotName"><br>
+      <label>Location:</label>
+      <input type="text" id="lotLocation"><br>
+      <label>Total Slots:</label>
+      <input type="number" id="lotSlots"><br>
+      <button type="button" onclick="registerLot()">
+        Register</button>
+    </form> 
+     </div>
 </body>
 </html>

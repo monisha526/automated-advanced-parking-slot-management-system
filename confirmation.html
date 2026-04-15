@@ -6,20 +6,102 @@
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     h1 { color: darkblue; }
-    .panel { border: 1px solid #ccc; padding: 15px; background: #e8f5e9; margin-top: 15px; }
-    .qr-code { width: 220px; height: 220px; border: 1px solid #ccc; margin-top: 15px; }
-    button { background: blue; color: white; padding: 8px 12px; border: none; cursor: pointer; }
+    .panel { border: 1px solid #ccc; padding: 15px; background: #e8f5e9; margin-top: 15px; border-radius: 5px; }
+    .qr-section { text-align: center; margin-top: 20px; padding: 15px; background: white; border-radius: 5px; }
+    #qrCanvas { max-width: 250px; margin-top: 15px; }
+    button { background: blue; color: white; padding: 8px 12px; border: none; cursor: pointer; border-radius: 3px; margin-right: 5px; }
+    button:hover { background: darkblue; }
   </style>
 </head>
 <body>
   <h1>🚗 Smart Parking Finder - Confirmation</h1>
   <div class="panel">
-    <h2>Booking Confirmed</h2>
+    <h2>✓ Booking Confirmed</h2>
     <p id="confirmationText"></p>
-    <canvas id="qrCanvas" class="qr-code" width="220" height="220"></canvas>
-    <p>Show this QR code when you arrive.</p>
+    
+    <div class="qr-section">
+      <h3>Parking Entry QR Code</h3>
+      <div id="qrCanvas"></div>
+      <p><strong>Show this QR code when you arrive at the parking lot</strong></p>
+    </div>
+    
+    <button type="button" onclick="downloadConfirmation()">Download Confirmation</button>
+    <button type="button" onclick="printConfirmation()">Print Confirmation</button>
+    <button type="button" onclick="exitParking()" style="background: #ff9800; margin: 5px;">Exit Parking</button>
     <button type="button" onclick="goHome()">Book Another Slot</button>
   </div>
+  
+  <!-- QR Code Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Firebase Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
+  
+  <script>
+    // Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+  
   <script src="parking.js"></script>
+  <script>
+    // Helper functions for confirmation page
+    function downloadConfirmation() {
+      const confirmText = document.getElementById("confirmationText").innerText;
+      const element = document.createElement("a");
+      element.setAttribute("href", "data:text/plain;charset=utf-8," + encodeURIComponent(confirmText));
+      element.setAttribute("download", "parking-confirmation.txt");
+      element.style.display = "none";
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+      alert("Confirmation downloaded!");
+    }
+    
+    function printConfirmation() {
+      window.print();
+    }
+    
+    function exitParking() {
+      // Get booking ID from localStorage or session
+      const bookingId = localStorage.getItem('lastBookingId');
+      if (bookingId) {
+        window.location.href = 'slot-exit.html?bookingId=' + bookingId;
+      } else {
+        alert('Booking ID not found. Please refresh the page.');
+      }
+    }
+  </script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const saved = localStorage.getItem("parkingConfirmation");
+      if (!saved) {
+        document.getElementById("confirmationText").textContent =
+          "No booking data found. Please complete payment first.";
+        return;
+      }
+
+      const data = JSON.parse(saved);
+      document.getElementById("confirmationText").textContent =
+        `Your slot at ${data.lotName} is confirmed. Amount paid: ₹${data.amount}. ` +
+        `Paid by ${data.payerName} (${data.payerEmail}).`;
+
+      new QRCode(document.getElementById("qrCanvas"), {
+        text: `Parking:${data.lotName}|Amount:${data.amount}|Name:${data.payerName}`,
+        width: 200,
+        height: 200
+      });
+    });
+  </script>
 </body>
 </html>

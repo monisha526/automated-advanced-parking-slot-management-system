@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Parking Dashboard</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #f4f4f4;
+      text-align: center;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      color: darkblue;
+      margin-bottom: 30px;
+    }
+    .card {
+      display: inline-block;
+      padding: 20px;
+      margin: 20px;
+      width: 200px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 0 10px gray;
+    }
+    .card h2 {
+      margin: 0 0 10px 0;
+      color: #333;
+    }
+    .card p {
+      font-size: 2.5em;
+      color: #4facfe;
+      margin: 10px 0 0 0;
+      font-weight: bold;
+    }
+    .card.available p {
+      color: green;
+    }
+    .card.occupied p {
+      color: red;
+    }
+    .nav-buttons {
+      margin-bottom: 30px;
+    }
+    .nav-buttons button {
+      padding: 10px 20px;
+      margin: 5px;
+      background: #4facfe;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .nav-buttons button:hover {
+      background: #0080ff;
+    }
+    .chart-container {
+      display: inline-block;
+      padding: 20px;
+      margin: 20px;
+      width: 400px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 0 10px gray;
+    }
+    .chart-container canvas {
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<div class="nav-buttons">
+  <button onclick="window.location.href='parking.html'">Back to Parking</button>
+  <button onclick="location.reload()">Refresh</button>
+</div>
+
+<h1>🚗 Parking Dashboard</h1>
+
+<div class="card">
+  <h2>Total Slots</h2>
+  <p id="total">0</p>
+</div>
+
+<div class="card available">
+  <h2>Available</h2>
+  <p id="available">0</p>
+</div>
+
+<div class="card occupied">
+  <h2>Occupied</h2>
+  <p id="occupied">0</p>
+</div>
+
+<div class="card" style="width: 400px; margin-top: 30px;">
+  <h2>Real-time Slot Status</h2>
+  <div id="slotsList"></div>
+</div>
+
+<div class="chart-container">
+  <h2>Parking Statistics</h2>
+  <canvas id="myChart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js"></script>
+
+<script src="dashboard.js"></script>
+
+</body>
+</html>

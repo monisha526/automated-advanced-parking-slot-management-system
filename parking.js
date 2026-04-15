@@ -1,15 +1,245 @@
-﻿const ratePerSlot = 100;
-let parkingLots = [
-  {name: "City Center Parking", location: "Downtown", slots: 5, lat: 40.7128, lng: -74.0060},
-  {name: "Airport Parking", location: "Airport Road", slots: 8, lat: 40.6413, lng: -73.7781},
-  {name: "Mall Parking", location: "Beach Street", slots: 3, lat: 40.7589, lng: -73.9851}
-];
-let selectedLotIndex = null;
-let currentUser = null;
-let map;
-let userLocation = null;
-let directionsService;
-let directionsRenderer;
+﻿const firebaseConfig = {
+  apiKey: "AIzaSyDfJfJfJfJfJfJfJfJfJfJfJfJfJfJfJfJf",
+  projectId: "groundstation-494",
+  authDomain: "groundstation-494.firebaseapp.com",
+  storageBucket: "groundstation-494.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:groundstation-494"
+};
+
+// Initialize Firebase
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();  // ← ADD THIS LINE
+const auth = firebase.auth();      // ← ADD THIS LINE
+
+// Declare missing variables
+let selectedSlots = [];
+let userMarker = null;
+
+// ============ LATE FEE SYSTEM ============
+// Calculate late fee based on overstay duration
+function calculateLateFee(bookingEndTime, actualExitTime) {
+  const endTime = new Date(bookingEndTime);
+  const exitTime = new Date(actualExitTime);
+  
+  // Calculate overstay in minutes
+  const overstayMinutes = Math.ceil((exitTime - endTime) / (1000 * 60));
+  
+  if (overstayMinutes <= 0) {
+    return 0; // No overstay, no fine
+  }
+  
+  // Minimum charge: ₹20 for 10 minutes
+  // Then ₹2 per minute for additional time
+  let lateFee = LATE_FEE_CONFIG.minimumChargeAmount; // Base ₹20
+  
+  if (overstayMinutes > LATE_FEE_CONFIG.minimumChargeMinutes) {
+    const additionalMinutes = overstayMinutes - LATE_FEE_CONFIG.minimumChargeMinutes;
+    lateFee += additionalMinutes * LATE_FEE_CONFIG.chargePerMinute;
+  }
+  
+  return lateFee;
+}
+
+// Get overstay details for display
+function getOverstayDetails(bookingEndTime, actualExitTime) {
+  const endTime = new Date(bookingEndTime);
+  const exitTime = new Date(actualExitTime);
+  
+  const overstayMinutes = Math.ceil((exitTime - endTime) / (1000 * 60));
+  const overstayHours = Math.floor(overstayMinutes / 60);
+  const overstayMinsRemainder = overstayMinutes % 60;
+  
+  return {
+    totalMinutes: overstayMinutes,
+    hours: overstayHours,
+    minutes: overstayMinsRemainder,
+    formattedTime: overstayHours > 0 ? `${overstayHours}h ${overstayMinsRemainder}m` : `${overstayMinutes}m`
+  };
+}
+
+// Record slot exit and calculate fine
+function exitSlot(bookingId, bookingEndTime) {
+  const actualExitTime = new Date();
+  const lateFee = calculateLateFee(bookingEndTime, actualExitTime);
+  const overstayDetails = getOverstayDetails(bookingEndTime, actualExitTime);
+  
+  let message = '';
+  if (lateFee > 0) {
+    message = `⚠️ OVERSTAY FINE\n\nYou exceeded your parking time by ${overstayDetails.formattedTime}\n\nFine: ₹${lateFee}\n\nThis will be added to your total bill.`;
+  } else {
+    message = `✓ Thank you for using Smart Parking!\n\nYour parking time was: ${overstayDetails.formattedTime}\n\nNo extra charges.`;
+  }
+  
+  // Save exit details to Firestore
+  saveExitRecord(bookingId, actualExitTime, lateFee, overstayDetails);
+  
+  // Show notification
+  showNotification(message);
+  
+  return {
+    lateFee: lateFee,
+    overstayDetails: overstayDetails,
+    message: message
+  };
+}
+
+// Save exit record and update booking with fine
+function saveExitRecord(bookingId, exitTime, lateFee, overstayDetails) {
+  db.collection('bookings').doc(bookingId).update({
+    actualExitTime: exitTime,
+    lateFee: lateFee,
+    overstayMinutes: overstayDetails.totalMinutes,
+    totalAmount: firebase.firestore.FieldValue.increment(lateFee),
+    status: 'ExitComplete'
+  }).then(() => {
+    console.log('Exit recorded with fine: ₹' + lateFee);
+  }).catch(error => {
+    console.error('Error recording exit:', error);
+  });
+}
+
+// Display fine in UI
+function displayFineNotification(lateFee, overstayDetails) {
+  const fineDiv = document.createElement('div');
+  fineDiv.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: ${lateFee > 0 ? '#ffebee' : '#e8f5e9'};
+    border: 2px solid ${lateFee > 0 ? '#f44336' : '#4caf50'};
+    border-radius: 10px;
+    padding: 20px;
+    max-width: 400px;
+    z-index: 9999;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  `;
+  
+  if (lateFee > 0) {
+    fineDiv.innerHTML = `
+      <h3 style="color:#f44336; margin-top:0;">⚠️ Overstay Fine Applied</h3>
+      <p><strong>Overstay Duration:</strong> ${overstayDetails.formattedTime}</p>
+      <p><strong>Fine Amount:</strong> <span style="font-size:24px; color:#f44336;">₹${lateFee}</span></p>
+      <p style="color:#666; font-size:12px; margin-bottom:0;">Minimum ₹20 for 10 minutes + ₹2/minute</p>
+    `;
+  } else {
+    fineDiv.innerHTML = `
+      <h3 style="color:#4caf50; margin-top:0;">✓ No Overstay</h3>
+      <p>You returned on time. Thank you!</p>
+    `;
+  }
+  
+  document.body.appendChild(fineDiv);
+  
+  // Auto-remove after 8 seconds
+  setTimeout(() => {
+    fineDiv.remove();
+  }, 8000);
+}
+
+// ============ END LATE FEE SYSTEM ============
+
+
+// Firebase Parking Slots Functions
+function addParkingSlot(slotNumber, status = "available", lotId = null) {
+  db.collection("slots").add({
+    slotNumber: slotNumber,
+    status: status,
+    lotId: lotId,
+    createdAt: new Date()
+  }).then((docRef) => {
+    console.log("Slot added with ID:", docRef.id);
+  }).catch((error) => {
+    console.error("Error adding slot:", error);
+  });
+}
+
+function initializeParkingSlots(lotIndex) {
+  const lot = parkingLots[lotIndex];
+  const slotLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  
+  for (let i = 1; i <= lot.slots; i++) {
+    const slotLetter = slotLetters[Math.floor((i - 1) / 10) % slotLetters.length];
+    const slotNumber = slotLetter + i;
+    addParkingSlot(slotNumber, "available", lot.name);
+  }
+}
+
+function updateSlotStatus(slotNumber, newStatus) {
+  db.collection("slots").where("slotNumber", "==", slotNumber).get().then((querySnapshot) => {
+    querySnapshot.forEach((doc) => {
+      db.collection("slots").doc(doc.id).update({
+        status: newStatus
+      }).then(() => {
+        console.log("Slot status updated:", slotNumber, newStatus);
+      }).catch((error) => {
+        console.error("Error updating slot:", error);
+      });
+    });
+  });
+}
+
+function changeSlotStatus(slotNumber, newStatus) {
+  updateSlotStatus(slotNumber, newStatus);
+}
+
+function getParkingSlotsFromFirestore(lotName, callback) {
+  db.collection("slots").where("lotId", "==", lotName).get().then((querySnapshot) => {
+    const slots = [];
+    querySnapshot.forEach((doc) => {
+      slots.push({id: doc.id, ...doc.data()});
+    });
+    callback(slots);
+  }).catch((error) => {
+    console.error("Error fetching slots:", error);
+  });
+}
+
+// Real-time listener for parking slots
+function listenToSlotsRealTime(lotName = null) {
+  let query = db.collection("slots");
+  
+  if (lotName) {
+    query = query.where("lotId", "==", lotName);
+  }
+  
+  return query.onSnapshot(snapshot => {
+    snapshot.forEach(doc => {
+      const slot = doc.data();
+      console.log("Slot Update:", slot.slotNumber, slot.status);
+      
+      // Update UI with real-time slot status
+      updateSlotUIRealTime(doc.id, slot);
+    });
+  }, (error) => {
+    console.error("Error listening to slots:", error);
+  });
+}
+
+// Listen to all slots in real-time
+function listenToAllSlotsRealTime() {
+  db.collection("slots").onSnapshot(snapshot => {
+    snapshot.forEach(doc => {
+      const slot = doc.data();
+      console.log("Slot ID:", doc.id, "Data:", slot);
+      
+      // Update UI with real-time slot status
+      updateSlotUIRealTime(doc.id, slot);
+    });
+  }, (error) => {
+    console.error("Error listening to all slots:", error);
+  });
+}
+
+// Helper function to update UI when slots change in real-time
+function updateSlotUIRealTime(slotId, slotData) {
+  const slotElement = document.getElementById(`slot-${slotId}`);
+  if (slotElement) {
+    slotElement.textContent = slotData.status === "available" ? "✓ Available" : "✗ Booked";
+    slotElement.style.color = slotData.status === "available" ? "green" : "red";
+  }
+}
 
 function updatePrice() {
   const duration = parseInt(document.getElementById("duration").value);
@@ -89,32 +319,229 @@ function updatePaymentFields() {
 }
 
 function initMap() {
+  // Map styling for better appearance
+  const mapStyle = [
+    {
+      featureType: "road",
+      elementType: "geometry",
+      stylers: [{color: "#e0e0e0"}]
+    },
+    {
+      featureType: "water",
+      elementType: "geometry",
+      stylers: [{color: "#a2d4ff"}]
+    },
+    {
+      featureType: "poi",
+      stylers: [{visibility: "off"}]
+    }
+  ];
+
   map = new google.maps.Map(document.getElementById('map'), {
     center: {lat: 40.7128, lng: -74.0060},
-    zoom: 12
+    zoom: 13,
+    styles: mapStyle,
+    mapTypeControl: true,
+    fullscreenControl: true,
+    zoomControl: true
   });
+
   directionsService = new google.maps.DirectionsService();
-  directionsRenderer = new google.maps.DirectionsRenderer();
-  directionsRenderer.setMap(map);
+  directionsRenderer = new google.maps.DirectionsRenderer({
+    map: map,
+    suppressMarkers: false,
+    polylineOptions: {
+      strokeColor: '#4facfe',
+      strokeWeight: 4
+    }
+  });
+
   updateMapMarkers();
+  startRealTimeLocationTracking();
+  listenToAllSlotsRealTime();
+  
+  showNotification("Map loaded. Click 'Use My Location' to start.");
+}
+
+// Real-time location tracking
+function startRealTimeLocationTracking() {
+  if (!navigator.geolocation) {
+    showNotification("Geolocation not supported on this device.");
+    return;
+  }
+
+  // Track location continuously (every 10 seconds)
+  setInterval(() => {
+    navigator.geolocation.getCurrentPosition((position) => {
+      const newLocation = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude
+      };
+
+      // Only update if location changed significantly
+      if (!userLocation || 
+          (Math.abs(userLocation.lat - newLocation.lat) > 0.0001 || 
+           Math.abs(userLocation.lng - newLocation.lng) > 0.0001)) {
+        
+        userLocation = newLocation;
+        updateUserLocationMarker();
+        updateDistancesToLots();
+      }
+    });
+  }, 10000); // Update every 10 seconds
+}
+
+// Update user location marker
+function updateUserLocationMarker() {
+  if (!map) return;
+
+  if (userMarker) {
+    userMarker.setPosition(userLocation);
+  } else {
+    userMarker = new google.maps.Marker({
+      position: userLocation,
+      map: map,
+      title: 'Your Location',
+      icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+      animation: google.maps.Animation.DROP
+    });
+  }
+
+  // Add accuracy circle
+  if (window.accuracyCircle) {
+    window.accuracyCircle.setMap(null);
+  }
+
+  window.accuracyCircle = new google.maps.Circle({
+    map: map,
+    center: userLocation,
+    radius: 100, // 100 meters
+    fillColor: '#4facfe',
+    fillOpacity: 0.15,
+    strokeColor: '#4facfe',
+    strokeOpacity: 0.4,
+    strokeWeight: 1
+  });
+
+  map.setCenter(userLocation);
 }
 
 function updateMapMarkers() {
   if (!map) return;
+
+  const infoWindows = [];
+
   parkingLots.forEach((lot, index) => {
+    // Create custom marker icon
+    const markerColor = lot.slots > 0 ? '#4CAF50' : '#f44336';
     const marker = new google.maps.Marker({
       position: {lat: lot.lat, lng: lot.lng},
       map: map,
-      title: lot.name
+      title: lot.name,
+      animation: google.maps.Animation.DROP,
+      label: {
+        text: lot.slots.toString(),
+        color: 'white',
+        fontSize: '12px',
+        fontWeight: 'bold'
+      }
     });
+
+    // Create info window
+    const infoWindow = new google.maps.InfoWindow({
+      content: `
+        <div style="color:black; padding:10px; font-family:Arial;">
+          <h4 style="margin:0 0 8px 0;">${lot.name}</h4>
+          <p style="margin:3px 0;"><strong>Location:</strong> ${lot.location}</p>
+          <p style="margin:3px 0;"><strong>Available Slots:</strong> <span style="color:${lot.slots > 0 ? 'green' : 'red'}; font-weight:bold;">${lot.slots}</span></p>
+          <p style="margin:3px 0;"><strong>Price:</strong> ₹${lot.price || 100}/slot</p>
+          ${userLocation ? `<p style="margin:3px 0;"><strong>Distance:</strong> <span id="distance-${index}">Calculating...</span></p>` : ''}
+          <button style="margin-top:8px; padding:6px 12px; background:#4facfe; color:white; border:none; border-radius:3px; cursor:pointer;" onclick="openBooking(${index})">
+            Book Now
+          </button>
+        </div>
+      `
+    });
+
+    infoWindows.push(infoWindow);
+
+    // Click listener
     marker.addListener('click', () => {
+      // Close all info windows
+      infoWindows.forEach(iw => iw.close());
+      // Open this one
+      infoWindow.open(map, marker);
       selectedLotIndex = index;
-      showNotification(`Selected: ${lot.name}`);
+    });
+
+    // Hover listener
+    marker.addListener('mouseover', () => {
+      marker.setAnimation(google.maps.Animation.BOUNCE);
+    });
+    marker.addListener('mouseout', () => {
+      marker.setAnimation(null);
     });
   });
 }
 
-let userMarker;
+// Calculate distances to all lots
+function updateDistancesToLots() {
+  if (!userLocation || !map) return;
+
+  parkingLots.forEach((lot, index) => {
+    const distance = calculateDistance(
+      userLocation.lat, 
+      userLocation.lng, 
+      lot.lat, 
+      lot.lng
+    ).toFixed(1);
+
+    const distanceElement = document.getElementById(`distance-${index}`);
+    if (distanceElement) {
+      distanceElement.textContent = distance + ' km';
+    }
+  });
+}
+
+// Calculate distance between two coordinates (Haversine formula)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Get directions to parking lot
+function getDirections(lotIndex) {
+  if (!userLocation || lotIndex === null) {
+    showNotification("Please select a parking lot and enable location");
+    return;
+  }
+
+  const lot = parkingLots[lotIndex];
+  const request = {
+    origin: userLocation,
+    destination: {lat: lot.lat, lng: lot.lng},
+    travelMode: 'DRIVING'
+  };
+
+  directionsService.route(request, (result, status) => {
+    if (status === 'OK') {
+      directionsRenderer.setDirections(result);
+      const route = result.routes[0];
+      const distance = route.legs[0].distance.text;
+      const duration = route.legs[0].duration.text;
+      showNotification(`Route: ${distance} | ETA: ${duration}`);
+    } else {
+      showNotification("Could not calculate route: " + status);
+    }
+  });
+}
 
 function getCurrentLocation() {
   if (navigator.geolocation) {
@@ -123,24 +550,36 @@ function getCurrentLocation() {
         lat: position.coords.latitude,
         lng: position.coords.longitude
       };
-      if (userMarker) {
-        userMarker.setMap(null);
-      }
-      userMarker = new google.maps.Marker({
-        position: userLocation,
-        map: map,
-        title: 'Your Location',
-        icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
-      });
-      map.setCenter(userLocation);
-      map.setZoom(15);
-      showNotification("Map centered on your location.");
-      updatePrices();
-    }, () => {
-      showNotification("Geolocation failed.");
+      updateUserLocationMarker();
+      updateDistancesToLots();
+      showNotification("Location found. Showing nearby parking...");
+    }, (error) => {
+      console.error(error);
+      showNotification("Unable to get your location. " + error.message);
+    }, {
+      enableHighAccuracy: true,
+      timeout: 5000,
+      maximumAge: 0
     });
   } else {
-    showNotification("Geolocation not supported.");
+    showNotification("Geolocation not supported on your device.");
+  }
+}
+
+function searchParking() {
+  const searchInput = document.getElementById("searchInput");
+  if (searchInput) {
+    renderParkingLots(searchInput.value);
+  }
+}
+
+function filterByLocation(location) {
+  const searchInput = document.getElementById("searchInput");
+  if (searchInput) {
+    searchInput.value = location;
+    renderParkingLots(location);
+    // Scroll to results
+    document.getElementById("parkingList").scrollIntoView({ behavior: "smooth" });
   }
 }
 
@@ -159,15 +598,38 @@ function renderParkingLots(filterText = "") {
     const originalIndex = parkingLots.indexOf(lot);
     const price = lot.price || 100;
     const distance = userLocation ? calculateDistance(userLocation.lat, userLocation.lng, lot.lat, lot.lng).toFixed(1) : 'N/A';
+    const slotsColor = lot.slots > 0 ? 'green' : 'red';
+    
+    // Generate slot display
+    let slotDisplay = '';
+    const totalSlots = 12; // Display up to 12 slots per lot
+    const occupiedSlots = Math.max(0, totalSlots - lot.slots);
+    
+    for (let i = 1; i <= totalSlots; i++) {
+      const isAvailable = i <= lot.slots;
+      const slotLetter = String.fromCharCode(64 + Math.ceil(i / 6)); // A, B
+      const slotNumber = ((i - 1) % 6) + 1;
+      const slotName = `${slotLetter}${slotNumber}`;
+      const slotColor = isAvailable ? '#4caf50' : '#f44336';
+      const slotBg = isAvailable ? '#e8f5e9' : '#ffebee';
+      
+      slotDisplay += `<span style="display:inline-block; width:28px; height:28px; margin:3px; background:${slotBg}; border:2px solid ${slotColor}; border-radius:3px; text-align:center; line-height:24px; font-size:11px; font-weight:bold; color:${slotColor}; cursor:pointer;" title="${slotName} - ${isAvailable ? 'Available' : 'Occupied'}">${slotName}</span>`;
+    }
+    
     list.innerHTML += `
       <div class="parking-lot">
-        <h3>${lot.name}</h3>
-        <p>Location: ${lot.location}</p>
-        <p>Distance: ${distance} km</p>
-        <p>Price per slot: ₹${price}</p>
-        <p>Slots Available: <span class="available">${lot.slots}</span></p>
+        <h3>📍 ${lot.name}</h3>
+        <p><strong>Location:</strong> ${lot.location}</p>
+        <p><strong>Distance:</strong> <span style="color:#4facfe; font-weight:bold;">${distance} km</span></p>
+        <p><strong>Price per slot:</strong> ₹${price}</p>
+        <p><strong>Slots Available:</strong> <span class="available" style="color:${slotsColor};">${lot.slots} / ${totalSlots} slots</span></p>
+        <p><strong>Slot Map:</strong></p>
+        <div style="margin: 10px 0; padding: 10px; background: #f9f9f9; border-radius: 3px; overflow-x: auto;">
+          ${slotDisplay}
+        </div>
         <div class="button-group">
-          <button class="book-btn" ${lot.slots === 0 ? "disabled" : ""} onclick="openBooking(${originalIndex})">Select Slot</button>
+          <button class="book-btn" ${lot.slots === 0 ? "disabled" : ""} onclick="openBooking(${originalIndex})">Book Now</button>
+          <button class="book-btn" style="background: #FF9800; margin-left:5px;" onclick="getDirections(${originalIndex})">Get Directions</button>
         </div>
       </div>
     `;
@@ -207,6 +669,52 @@ function showNotification(message) {
   }
 }
 
+// QR Code Generation Functions
+function generateQRCode(element, text, width = 220, height = 220) {
+  if (!element) return;
+  
+  // Clear previous QR code
+  element.innerHTML = "";
+  
+  // Check if QRCode library is loaded
+  if (typeof QRCode === 'undefined') {
+    console.error("QRCode library not loaded. Add CDN: https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
+    element.textContent = "QR Code library not available";
+    return;
+  }
+  
+  // Generate new QR code
+  try {
+    new QRCode(element, {
+      text: text,
+      width: width,
+      height: height,
+      colorDark: "#000000",
+      colorLight: "#ffffff",
+      correctLevel: QRCode.CorrectLevel.H
+    });
+    console.log("QR Code generated successfully");
+  } catch (error) {
+    console.error("Error generating QR code:", error);
+    element.textContent = "Error generating QR code";
+  }
+}
+
+function generateBookingQR(bookingData) {
+  const canvas = document.getElementById("qrCanvas");
+  if (!canvas) return;
+  
+  // Create booking string for QR code
+  const bookingString = `Booking ID:${bookingData.bookingId || 'PARK-' + Date.now()}|Lot:${bookingData.lotName}|User:${bookingData.user}|Date:${bookingData.bookingDate}|Slots:${bookingData.slots}`;
+  
+  generateQRCode(canvas, bookingString, 220, 220);
+}
+
+function generatePaymentQRWithUPI(payerName, amount, gateway) {
+  const upiString = `upi://pay?pa=parking@upi&pn=${payerName}&am=${amount}&tn=Parking%20Booking&tr=PARK${Date.now()}`;
+  return upiString;
+}
+
 function resetSearch() {
   document.getElementById("searchInput").value = "";
   renderParkingLots();
@@ -233,6 +741,35 @@ function preparePayment() {
   window.location.href = 'payment.html';
 }
 
+// Save booking to Firebase and track owner earnings
+function saveBooking(bookingData) {
+  db.collection("bookings").add({
+    ...bookingData,
+    date: new Date(),
+    status: 'Completed'
+  }).then(docRef => {
+    console.log("Booking saved with ID:", docRef.id);
+    
+    // Update owner earnings
+    if (bookingData.ownerUid) {
+      updateOwnerEarnings(bookingData.ownerUid, bookingData.amount);
+    }
+  }).catch(error => {
+    console.error("Error saving booking:", error);
+  });
+}
+
+// Update owner's total earnings
+function updateOwnerEarnings(ownerUid, amount) {
+  db.collection("owners").doc(ownerUid).update({
+    totalEarnings: firebase.firestore.FieldValue.increment(amount)
+  }).then(() => {
+    console.log("Owner earnings updated: ₹" + amount);
+  }).catch(error => {
+    console.error("Error updating earnings:", error);
+  });
+}
+
 function payOnline() {
   const payerName = document.getElementById("payerName").value.trim();
   const payerEmail = document.getElementById("payerEmail").value.trim();
@@ -243,6 +780,7 @@ function payOnline() {
     return;
   }
 
+  // Validate payment details
   let paymentDetail = "";
   if (gateway === 'netbanking') {
     const bankName = document.getElementById("bankName").value.trim();
@@ -268,8 +806,9 @@ function payOnline() {
     paymentDetail = `Card: **** **** **** ${cardNumber.slice(-4)}`;
   }
 
-  // Simulate payment
+  // Simulate payment processing
   alert(`Processing payment via ${gateway}...`);
+  
   setTimeout(() => {
     const lotIndex = parseInt(localStorage.getItem('selectedLotIndex'), 10);
     const slots = JSON.parse(localStorage.getItem('selectedSlots'));
@@ -277,184 +816,595 @@ function payOnline() {
     const duration = localStorage.getItem('duration');
     const amount = parseInt(localStorage.getItem('totalAmount'), 10);
 
+    // Update parking lot slots
     parkingLots[lotIndex].slots -= slots.length;
     localStorage.setItem('parkingLots', JSON.stringify(parkingLots));
-    const booking = {lot: parkingLots[lotIndex].name, slots: slots.length, date: bookingDate, duration: duration + ' hours', amount, name: payerName, payment: gateway};
-    localStorage.setItem('confirmation', JSON.stringify(booking));
+
+    // Create booking data
+    const bookingData = {
+      lot: parkingLots[lotIndex].name,
+      lotName: parkingLots[lotIndex].name,
+      slots: slots.length,
+      date: bookingDate,
+      duration: duration + ' hours',
+      amount: amount,
+      name: payerName,
+      payment: gateway,
+      customerEmail: payerEmail
+    };
+
+    // Save booking to localStorage for confirmation
+    localStorage.setItem('confirmation', JSON.stringify(bookingData));
+
     // Add to history
     const history = JSON.parse(localStorage.getItem('bookingHistory')) || [];
-    history.push(booking);
+    history.push(bookingData);
     localStorage.setItem('bookingHistory', JSON.stringify(history));
+
+    // ===== CLOUD FEATURES INTEGRATION =====
+    // 1. Save customer data
+    saveCustomerData({
+      name: payerName,
+      email: payerEmail,
+      phone: '' // Add phone field if available
+    }).then(customerId => {
+      // 2. Update customer after booking
+      updateCustomerAfterBooking(customerId, amount);
+    });
+
+    // 3. Generate and save receipt
+    const paymentData = {
+      payerName: payerName,
+      payerEmail: payerEmail,
+      gateway: gateway
+    };
+    generateReceipt(bookingData, paymentData);
+
+    // 4. Send notifications
+    sendBookingNotification(bookingData);
+    sendEmailNotification(payerEmail, 'Parking Booking Confirmed', 
+      `Your parking slot at ${bookingData.lotName} is confirmed. Amount: ₹${amount}`);
+
+    // Redirect to confirmation
     window.location.href = 'confirmation.html';
   }, 2000);
 }
 
-function goBack() {
-  window.history.back();
-}
+// ============ END CLOUD FEATURES ============
 
-function renderSlotGrid(totalSlots, bookedSlots = []) {
-  const grid = document.getElementById('slotGrid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  selectedSlots = [];
-  for (let i = 1; i <= totalSlots; i++) {
-    const slot = document.createElement('div');
-    slot.className = 'slot';
-    slot.textContent = i;
-    if (bookedSlots.includes(i)) {
-      slot.classList.add('booked');
-    } else {
-      slot.classList.add('available');
-      slot.onclick = () => toggleSlotSelection(i, slot);
-    }
-    grid.appendChild(slot);
-  }
-  updateSelectedCount();
-}
-
-function toggleSlotSelection(slotNumber, element) {
-  if (selectedSlots.includes(slotNumber)) {
-    selectedSlots = selectedSlots.filter(s => s !== slotNumber);
-    element.classList.remove('selected');
-    element.classList.add('available');
-  } else {
-    selectedSlots.push(slotNumber);
-    element.classList.remove('available');
-    element.classList.add('selected');
-  }
-  updateSelectedCount();
-}
-
-function renderBookingHistory() {
-  const historyEl = document.getElementById('bookingHistory');
-  if (!historyEl) return;
-  const history = JSON.parse(localStorage.getItem('bookingHistory')) || [];
-  historyEl.innerHTML = history.length ? '' : '<p>No bookings yet.</p>';
-  history.forEach((booking, index) => {
-    historyEl.innerHTML += `
-      <div class="booking-item">
-        <p><strong>Lot:</strong> ${booking.lot}</p>
-        <p><strong>Slots:</strong> ${booking.slots}</p>
-        <p><strong>Duration:</strong> ${booking.duration || 'N/A'}</p>
-        <p><strong>Date:</strong> ${new Date(booking.date).toLocaleString()}</p>
-        <p><strong>Amount:</strong> ₹${booking.amount}</p>
-        <button onclick="cancelBooking(${index})">Cancel</button>
-      </div>
-    `;
+// ============ CUSTOMER DATA MANAGEMENT ============
+// Save customer data to Firestore
+function saveCustomerData(customerInfo) {
+  return db.collection("customers").add({
+    ...customerInfo,
+    createdAt: new Date(),
+    totalBookings: 0,
+    totalSpent: 0
+  }).then(docRef => {
+    console.log("Customer saved with ID:", docRef.id);
+    return docRef.id;
+  }).catch(error => {
+    console.error("Error saving customer:", error);
   });
 }
 
-function cancelBooking(index) {
-  const history = JSON.parse(localStorage.getItem('bookingHistory')) || [];
-  const booking = history.splice(index, 1)[0];
-  localStorage.setItem('bookingHistory', JSON.stringify(history));
-  // Refund slots
-  const lotIndex = parkingLots.findIndex(l => l.name === booking.lot);
-  if (lotIndex >= 0) {
-    parkingLots[lotIndex].slots += booking.slots;
-    localStorage.setItem('parkingLots', JSON.stringify(parkingLots));
-  }
-  renderBookingHistory();
-  alert('Booking cancelled.');
+// Update customer after booking
+function updateCustomerAfterBooking(customerId, bookingAmount) {
+  if (!customerId) return;
+  db.collection("customers").doc(customerId).update({
+    totalBookings: firebase.firestore.FieldValue.increment(1),
+    totalSpent: firebase.firestore.FieldValue.increment(bookingAmount),
+    lastBooking: new Date()
+  }).then(() => {
+    console.log("Customer updated after booking");
+  }).catch(error => {
+    console.error("Error updating customer:", error);
+  });
 }
 
-function hashString(text) {
-  return Array.from(text).reduce((hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) >>> 0, 0);
+// ============ BILLING RECEIPTS ============
+// Generate and save receipt
+function generateReceipt(bookingData, paymentData) {
+  const receipt = {
+    receiptId: 'REC-' + Date.now(),
+    customerName: paymentData.payerName,
+    customerEmail: paymentData.payerEmail,
+    lotName: bookingData.lotName,
+    amount: bookingData.amount,
+    paymentMethod: paymentData.gateway,
+    bookingDate: new Date(),
+    qrCodeData: `Receipt:${receipt.receiptId}|Amount:${bookingData.amount}`
+  };
+
+  // Save to Firestore
+  db.collection("receipts").add(receipt).then(docRef => {
+    console.log("Receipt saved:", docRef.id);
+    // Store for confirmation page
+    localStorage.setItem('receipt', JSON.stringify(receipt));
+  }).catch(error => {
+    console.error("Error saving receipt:", error);
+  });
+
+  return receipt;
 }
 
-function drawConfirmationQRCode(text) {
-  const canvas = document.getElementById("qrCanvas");
-  const ctx = canvas.getContext("2d");
-  const size = 20;
-  const gridSize = 10;
-  const seed = hashString(text);
-  let value = seed;
+// Display receipt in confirmation page
+function displayReceipt(receipt) {
+  const receiptDiv = document.createElement('div');
+  receiptDiv.style.cssText = `
+    margin: 20px 0;
+    padding: 20px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+  `;
+  receiptDiv.innerHTML = `
+    <h3>📄 Billing Receipt</h3>
+    <p><strong>Receipt ID:</strong> ${receipt.receiptId}</p>
+    <p><strong>Customer:</strong> ${receipt.customerName}</p>
+    <p><strong>Parking Lot:</strong> ${receipt.lotName}</p>
+    <p><strong>Amount Paid:</strong> ₹${receipt.amount}</p>
+    <p><strong>Payment Method:</strong> ${receipt.paymentMethod}</p>
+    <p><strong>Date:</strong> ${receipt.bookingDate.toLocaleString()}</p>
+    <button onclick="downloadReceipt('${receipt.receiptId}')">Download Receipt</button>
+  `;
+  document.body.appendChild(receiptDiv);
+}
 
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+// Download receipt as text file
+function downloadReceipt(receiptId) {
+  const receipt = JSON.parse(localStorage.getItem('receipt'));
+  if (!receipt) return;
+  
+  const receiptText = `
+SMART PARKING RECEIPT
+=====================
+Receipt ID: ${receipt.receiptId}
+Customer: ${receipt.customerName}
+Email: ${receipt.customerEmail}
+Parking Lot: ${receipt.lotName}
+Amount Paid: ₹${receipt.amount}
+Payment Method: ${receipt.paymentMethod}
+Date: ${new Date(receipt.bookingDate).toLocaleString()}
 
-  function nextBit() {
-    value = (value * 1664525 + 1013904223) >>> 0;
-    return value & 1;
+Thank you for using Smart Parking!
+  `;
+  
+  const element = document.createElement("a");
+  element.setAttribute("href", "data:text/plain;charset=utf-8," + encodeURIComponent(receiptText));
+  element.setAttribute("download", `receipt-${receiptId}.txt`);
+  element.style.display = "none";
+  document.body.appendChild(element);
+  element.click();
+  document.body.removeChild(element);
+}
+
+// ============ ALERTING NOTIFICATIONS ============
+// Request notification permission
+function requestNotificationPermission() {
+  if ('Notification' in window) {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        console.log('Notification permission granted');
+      }
+    });
+  }
+}
+
+// Send booking confirmation notification
+function sendBookingNotification(bookingData) {
+  if (Notification.permission === 'granted') {
+    const notification = new Notification('Parking Booked Successfully!', {
+      body: `Your slot at ${bookingData.lotName} is confirmed. Amount: ₹${bookingData.amount}`,
+      icon: '/icon.png' // Add your icon path
+    });
+    
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+  }
+}
+
+// Alert for slot availability
+function sendSlotAlert(lotName) {
+  if (Notification.permission === 'granted') {
+    const notification = new Notification('Parking Slot Available!', {
+      body: `Slots are now available at ${lotName}`,
+      icon: '/icon.png'
+    });
+    
+    notification.onclick = () => {
+      window.location.href = 'parking.html';
+      notification.close();
+    };
+  }
+}
+
+// Send email notification (requires backend service)
+function sendEmailNotification(email, subject, message) {
+  // This would typically be done via a backend service
+  // For demo, we'll log it
+  console.log(`Email to ${email}: ${subject} - ${message}`);
+  
+  // In production, use a service like SendGrid, Mailgun, or Firebase Functions
+  // Example with Firebase Functions:
+  // firebase.functions().httpsCallable('sendEmail')({email, subject, message});
+  
+  // Event tracking for analytics
+  logAnalyticsEvent('email_sent', {
+    recipient: email,
+    subject: subject
+  });
+}
+
+// ============ ADVANCED EMAIL NOTIFICATIONS ============
+// Send email via Brevo (Sendinblue)
+function sendEmailViaBrevo(email, subject, htmlMessage) {
+  const BREVO_API_KEY = localStorage.getItem('brevoApiKey'); // Store in localStorage
+  if (!BREVO_API_KEY) {
+    console.warn('Brevo API key not configured');
+    return;
   }
 
-  for (let row = 0; row < gridSize; row += 1) {
-    for (let col = 0; col < gridSize; col += 1) {
-      ctx.fillStyle = nextBit() ? "#000000" : "#ffffff";
-      ctx.fillRect(col * size + 10, row * size + 10, size - 2, size - 2);
+  const payload = {
+    sender: {
+      email: "noreply@smartparking.com",
+      name: "Smart Parking System"
+    },
+    to: [{ email: email }],
+    subject: subject,
+    htmlContent: htmlMessage
+  };
+
+  fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'api-key': BREVO_API_KEY
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(response => {
+    if (response.ok) {
+      console.log('Email sent successfully via Brevo');
+      logAnalyticsEvent('email_sent_brevo', { recipient: email });
+    }
+  })
+  .catch(error => console.error('Brevo email error:', error));
+}
+
+// HTML email templates
+function getBookingConfirmationEmail(bookingData) {
+  return `
+    <html>
+      <body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;">
+        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; margin: 0 auto;">
+          <h2 style="color: #667eea;">Parking Booking Confirmed ✓</h2>
+          <p>Dear ${bookingData.customerName},</p>
+          <p>Your parking slot has been successfully booked!</p>
+          
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <strong>Booking Details:</strong><br>
+            Lot: ${bookingData.lotName}<br>
+            Duration: ${bookingData.duration}<br>
+            Amount: ₹${bookingData.amount}<br>
+            Booking ID: ${bookingData.bookingId || 'PENDING'}
+          </div>
+          
+          <p>Please arrive 10 minutes before your scheduled time.</p>
+          <p>For support, contact us at support@smartparking.com</p>
+          <p>Best regards,<br>Smart Parking Team</p>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function getReceiptEmail(receiptData) {
+  return `
+    <html>
+      <body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;">
+        <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; margin: 0 auto;">
+          <h2 style="color: #667eea;">Parking Receipt</h2>
+          <p>Dear ${receiptData.customerName},</p>
+          
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <strong>Receipt ID:</strong> ${receiptData.receiptId}<br>
+            <strong>Amount:</strong> ₹${receiptData.amount}<br>
+            <strong>Late Fee:</strong> ₹${receiptData.lateFee || 0}<br>
+            <strong>Total:</strong> ₹${(receiptData.amount || 0) + (receiptData.lateFee || 0)}<br>
+            <strong>Payment Method:</strong> ${receiptData.paymentMethod}
+          </div>
+          
+          <p>Your receipt has been generated. Please keep it for your records.</p>
+          <p>Thank you for using Smart Parking!</p>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+// ============ SMS NOTIFICATIONS ============
+// Send SMS via Twilio
+function sendSMSViaTwilio(phone, message) {
+  // Note: This requires a backend server due to security constraints
+  // Frontend cannot directly call Twilio APIs without exposing credentials
+  console.log(`SMS to ${phone}: ${message}`);
+  
+  // For production, use Firebase Cloud Function:
+  // firebase.functions().httpsCallable('sendSMS')({phone, message});
+}
+
+// ============ ANALYTICS & TRACKING ============
+// Log event to Firebase Analytics
+function logAnalyticsEvent(eventName, eventData = {}) {
+  try {
+    if (typeof firebase !== 'undefined' && firebase.analytics) {
+      firebase.analytics().logEvent(eventName, eventData);
+      console.log(`Analytics event logged: ${eventName}`, eventData);
+    }
+  } catch (error) {
+    console.warn('Analytics logging error:', error);
+  }
+}
+
+// Track parking booking
+function trackBookingEvent(bookingData) {
+  logAnalyticsEvent('parking_booked', {
+    lot_name: bookingData.lotName,
+    amount: bookingData.amount,
+    slots: bookingData.slots,
+    duration: bookingData.duration,
+    payment_method: bookingData.paymentMethod
+  });
+}
+
+// Track payment completion
+function trackPaymentEvent(paymentData) {
+  logAnalyticsEvent('payment_completed', {
+    amount: paymentData.amount,
+    gateway: paymentData.gateway,
+    customer_email: paymentData.customerEmail
+  });
+}
+
+// Track slot exit
+function trackExitEvent(exitData) {
+  logAnalyticsEvent('parking_exit', {
+    lot_name: exitData.lotName,
+    late_fee: exitData.lateFee,
+    overstay_minutes: exitData.overstayMinutes,
+    total_amount: exitData.totalAmount
+  });
+}
+
+// Track late fee
+function trackLateFeEvent(lateData) {
+  logAnalyticsEvent('late_fee_charged', {
+    booking_id: lateData.bookingId,
+    fine_amount: lateData.fineAmount,
+    overstay_duration: lateData.overstayDuration
+  });
+}
+
+// ============ NOTIFICATION PREFERENCES ============
+// Save user notification preferences
+function saveNotificationPreferences(preferences) {
+  const prefs = {
+    emailNotifications: preferences.email || true,
+    smsNotifications: preferences.sms || false,
+    pushNotifications: preferences.push || true,
+    savedAt: new Date().toISOString()
+  };
+  
+  localStorage.setItem('notificationPrefs', JSON.stringify(prefs));
+  
+  if (typeof db !== 'undefined') {
+    const customerEmail = localStorage.getItem('userEmail');
+    if (customerEmail) {
+      db.collection('customers').doc(customerEmail).update({
+        notificationPreferences: prefs
+      }).catch(error => console.warn('Error saving preferences:', error));
     }
   }
-
-  ctx.fillStyle = "#000000";
-  ctx.font = "14px Arial";
-  ctx.fillText("QR CONFIRM", 20, canvas.height - 10);
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-  const user = JSON.parse(localStorage.getItem('user'));
-  if (user) {
-    currentUser = user;
-    if (document.getElementById('userName')) {
-      document.getElementById('userName').textContent = user.username;
-    }
-  }
+// Get user notification preferences
+function getNotificationPreferences() {
+  const stored = localStorage.getItem('notificationPrefs');
+  return stored ? JSON.parse(stored) : {
+    emailNotifications: true,
+    smsNotifications: false,
+    pushNotifications: true
+  };
+}
 
-  // Load parking lots from localStorage if available
-  const storedLots = JSON.parse(localStorage.getItem('parkingLots'));
-  if (storedLots) {
-    parkingLots = storedLots;
-  } else {
-    // Set default prices
-    parkingLots.forEach(lot => lot.price = 100);
+// ============ AUDIT LOGGING ============
+// Log user actions for security and analytics
+function logUserAction(action, details = {}) {
+  const actionLog = {
+    action: action,
+    details: details,
+    timestamp: new Date().toISOString(),
+    userEmail: localStorage.getItem('userEmail') || 'unknown'
+  };
+  
+  console.log('[AUDIT LOG]', actionLog);
+  
+  // Save to Firestore if available
+  if (typeof db !== 'undefined') {
+    db.collection('audit_logs').add(actionLog)
+      .catch(error => console.warn('Audit logging error:', error));
   }
+}
 
-  if (document.getElementById('parkingList')) {
-    renderParkingLots();
-    // Simulate real-time updates
-    setInterval(() => {
-      // Randomly change availability for demo
-      parkingLots.forEach(lot => {
-        if (Math.random() < 0.1) { // 10% chance
-          lot.slots = Math.max(0, lot.slots + (Math.random() > 0.5 ? 1 : -1));
-        }
+// Log payment action
+function logPaymentAction(paymentData) {
+  logUserAction('payment_processing', {
+    gateway: paymentData.gateway,
+    amount: paymentData.amount,
+    customer: paymentData.customerName
+  });
+}
+
+// Log booking action
+function logBookingAction(bookingData) {
+  logUserAction('booking_created', {
+    lot: bookingData.lotName,
+    slots: bookingData.slots,
+    amount: bookingData.amount
+  });
+}
+
+// ============ ERROR REPORTING ============
+// Report errors to console and optionally to server
+function reportError(errorCode, errorMessage, context = {}) {
+  const errorReport = {
+    code: errorCode,
+    message: errorMessage,
+    context: context,
+    timestamp: new Date().toISOString(),
+    url: window.location.href,
+    userAgent: navigator.userAgent
+  };
+  
+  console.error('[ERROR REPORT]', errorReport);
+  
+  // Save to Firestore if available
+  if (typeof db !== 'undefined') {
+    db.collection('error_logs').add(errorReport)
+      .catch(error => console.warn('Error reporting failed:', error));
+  }
+}
+
+// ============ CUSTOMER FEEDBACK ============
+// Send customer feedback
+function submitFeedback(rating, comment) {
+  const feedback = {
+    rating: rating,
+    comment: comment,
+    customerEmail: localStorage.getItem('userEmail'),
+    timestamp: new Date().toISOString()
+  };
+  
+  if (typeof db !== 'undefined') {
+    db.collection('customer_feedback').add(feedback)
+      .then(() => {
+        console.log('Feedback submitted successfully');
+        alert('Thank you for your feedback!');
+        logAnalyticsEvent('feedback_submitted', { rating: rating });
+      })
+      .catch(error => {
+        console.error('Error submitting feedback:', error);
+        reportError('FEEDBACK_ERROR', error.message);
       });
-      renderParkingLots(document.getElementById("searchInput")?.value || "");
-    }, 10000); // Update every 10 seconds
+  } else {
+    console.log('Feedback (offline):', feedback);
+  }
+}
+
+// ============ INTEGRATION WITH PAYMENT FLOW ============
+// Enhanced payOnline function with cloud features
+function payOnline() {
+  const payerName = document.getElementById("payerName").value.trim();
+  const payerEmail = document.getElementById("payerEmail").value.trim();
+  const gateway = document.getElementById("paymentGateway").value;
+
+  if (!payerName || !payerEmail) {
+    alert("Please fill in name and email.");
+    return;
   }
 
-  if (document.getElementById('selectedLotName')) {
-    const index = parseInt(localStorage.getItem('selectedLotIndex'), 10);
-    const lot = parkingLots[index];
-    document.getElementById("selectedLotName").textContent = lot.name;
-    document.getElementById("selectedLotLocation").textContent = lot.location;
-    document.getElementById("selectedLotPrice").textContent = lot.price || 100;
-    document.getElementById("selectedLotSlots").textContent = lot.slots;
-    // Assume some slots are booked, for demo
-    const booked = lot.slots < 5 ? [1, 2] : []; // Example
-    renderSlotGrid(10, booked); // Assume 10 total slots per lot
+  // Validate payment details
+  let paymentDetail = "";
+  if (gateway === 'netbanking') {
+    const bankName = document.getElementById("bankName").value.trim();
+    const accountNumber = document.getElementById("accountNumber").value.trim();
+    if (!bankName || !accountNumber) {
+      alert("Please fill in bank details.");
+      return;
+    }
+    paymentDetail = `Bank: ${bankName}, Account: ${accountNumber}`;
+  } else if (['razorpay', 'paytm', 'gpay', 'phonepe'].includes(gateway)) {
+    const upiId = document.getElementById("upiId").value.trim();
+    if (!upiId) {
+      alert("Please enter UPI ID.");
+      return;
+    }
+    paymentDetail = `UPI: ${upiId}`;
+  } else {
+    const cardNumber = document.getElementById("cardNumber").value.trim();
+    if (!cardNumber || cardNumber.replace(/\s+/g, "").length < 12) {
+      alert("Please enter a valid card number.");
+      return;
+    }
+    paymentDetail = `Card: **** **** **** ${cardNumber.slice(-4)}`;
   }
 
-  if (document.getElementById('paymentLotName')) {
-    const index = parseInt(localStorage.getItem('selectedLotIndex'), 10);
-    const lot = parkingLots[index];
-    const amount = parseInt(localStorage.getItem('totalAmount'), 10) || 0;
-    document.getElementById("paymentLotName").textContent = lot.name;
-    document.getElementById("paymentAmount").textContent = amount;
-  }
+  // Simulate payment processing
+  alert(`Processing payment via ${gateway}...`);
+  
+  setTimeout(() => {
+    const lotIndex = parseInt(localStorage.getItem('selectedLotIndex'), 10);
+    const slots = JSON.parse(localStorage.getItem('selectedSlots'));
+    const bookingDate = localStorage.getItem('bookingDate');
+    const duration = localStorage.getItem('duration');
+    const amount = parseInt(localStorage.getItem('totalAmount'), 10);
 
-  if (document.getElementById('confirmationText')) {
-    const conf = JSON.parse(localStorage.getItem('confirmation'));
-    const confirmation = `Booking confirmed for ${conf.slots} ${conf.slots === 1 ? "slot" : "slots"} at ${conf.lot} on ${new Date(conf.date).toLocaleString()} for ${conf.duration}. Amount paid: ₹${conf.amount}.`;
-    document.getElementById("confirmationText").textContent = confirmation;
-    drawConfirmationQRCode(`lot=${conf.lot}|slots=${conf.slots}|date=${conf.date}|amount=${conf.amount}|name=${conf.name}`);
-  }
+    // Update parking lot slots
+    parkingLots[lotIndex].slots -= slots.length;
+    localStorage.setItem('parkingLots', JSON.stringify(parkingLots));
 
-  if (document.getElementById('bookingHistory')) {
-    renderBookingHistory();
-  }
+    // Create booking data
+    const bookingData = {
+      lot: parkingLots[lotIndex].name,
+      lotName: parkingLots[lotIndex].name,
+      slots: slots.length,
+      date: bookingDate,
+      duration: duration + ' hours',
+      amount: amount,
+      name: payerName,
+      payment: gateway,
+      customerEmail: payerEmail
+    };
 
-  if (typeof google !== 'undefined' && document.getElementById('map')) {
-    initMap();
-  }
-});
+    // Save booking to localStorage for confirmation
+    localStorage.setItem('confirmation', JSON.stringify(bookingData));
+
+    // Add to history
+    const history = JSON.parse(localStorage.getItem('bookingHistory')) || [];
+    history.push(bookingData);
+    localStorage.setItem('bookingHistory', JSON.stringify(history));
+
+    // ===== CLOUD FEATURES INTEGRATION =====
+    // 1. Save customer data
+    saveCustomerData({
+      name: payerName,
+      email: payerEmail,
+      phone: '' // Add phone field if available
+    }).then(customerId => {
+      // 2. Update customer after booking
+      updateCustomerAfterBooking(customerId, amount);
+    });
+
+    // 3. Generate and save receipt
+    const paymentData = {
+      payerName: payerName,
+      payerEmail: payerEmail,
+      gateway: gateway
+    };
+    generateReceipt(bookingData, paymentData);
+
+    // 4. Send notifications
+    sendBookingNotification(bookingData);
+    sendEmailNotification(payerEmail, 'Parking Booking Confirmed', 
+      `Your parking slot at ${bookingData.lotName} is confirmed. Amount: ₹${amount}`);
+
+    // Redirect to confirmation
+    window.location.href = 'confirmation.html';
+  }, 2000);
+}
+
+// ============ END CLOUD FEATURES ============
