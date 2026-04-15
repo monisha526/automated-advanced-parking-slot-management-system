@@ -7,6 +7,9 @@
   appId: "1:123456789:web:groundstation-494"
 };
 
+// Debug logging
+console.log("🚗 Parking.js loaded - Version with GPS Tracking");
+
 // Initialize Firebase
 const app = firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();  // ← ADD THIS LINE
@@ -15,6 +18,14 @@ const auth = firebase.auth();      // ← ADD THIS LINE
 // Declare missing variables
 let selectedSlots = [];
 let userMarker = null;
+
+// Map and Navigation variables
+let map = null;
+let userLocation = null;
+let selectedLotIndex = null;
+let directionsService = null;
+let directionsRenderer = null;
+let currentUser = null;
 
 // ============ GPS TRACKING SYSTEM ============
 // GPS Configuration
@@ -46,11 +57,15 @@ let arrivalDetected = false;
 
 // Initialize GPS tracking
 function initializeGPSTracking() {
+  console.log("[GPS] Initializing GPS tracking...");
+  
   if (!navigator.geolocation) {
+    console.error("[GPS] Geolocation API not supported");
     showNotification("❌ GPS not supported on this device.");
     return false;
   }
   
+  console.log("[GPS] Geolocation API available");
   gpsEnabled = true;
   showNotification("📍 GPS Tracking Started");
   
@@ -64,6 +79,8 @@ function initializeGPSTracking() {
       maximumAge: 0
     }
   );
+  
+  console.log("[GPS] Watch ID:", gpsWatchId);
   
   // Update GPS status display
   updateGPSStatusDisplay();
@@ -81,6 +98,13 @@ function handleGPSSuccess(position) {
   // Update GPS accuracy and heading
   gpsAccuracy = position.coords.accuracy;
   currentHeading = position.coords.heading || 0;
+  
+  console.log("[GPS] Position update:", {
+    lat: newLocation.lat.toFixed(6),
+    lng: newLocation.lng.toFixed(6),
+    accuracy: gpsAccuracy.toFixed(2),
+    heading: currentHeading.toFixed(2)
+  });
   
   // Calculate speed if available
   if (position.coords.speed !== null) {
@@ -248,6 +272,12 @@ function playArrivalSound() {
 
 // Update GPS status display UI
 function updateGPSStatusDisplay() {
+  // Ensure DOM is ready
+  if (!document.body) {
+    setTimeout(() => updateGPSStatusDisplay(), 100);
+    return;
+  }
+  
   let statusDiv = document.getElementById('gpsStatusDisplay');
   
   if (!statusDiv) {
@@ -374,6 +404,13 @@ function saveGPSSessionData(bookingId) {
 // ============ END GPS TRACKING SYSTEM ============
 
 // ============ LATE FEE SYSTEM ============
+// Late fee configuration
+const LATE_FEE_CONFIG = {
+  minimumChargeAmount: 20, // ₹20 base charge
+  minimumChargeMinutes: 10, // For first 10 minutes
+  chargePerMinute: 2 // ₹2 per minute after 10 minutes
+};
+
 // Calculate late fee based on overstay duration
 function calculateLateFee(bookingEndTime, actualExitTime) {
   const endTime = new Date(bookingEndTime);
@@ -1012,6 +1049,9 @@ function signupUser() {
 }
 
 function showNotification(message) {
+  // Log to console as fallback
+  console.log("[Notification]", message);
+  
   const notification = document.getElementById("notification");
   if (notification) {
     notification.textContent = message;
@@ -1759,3 +1799,64 @@ function payOnline() {
 }
 
 // ============ END CLOUD FEATURES ============
+
+// ============ EXIT PARKING INTEGRATION ============
+
+// Store exit data before leaving for exit page
+function initiateExit(bookingId) {
+  if (!bookingId || !db) {
+    showNotification("❌ Cannot initiate exit without booking data");
+    return;
+  }
+  
+  // Fetch booking details from Firebase
+  db.collection('bookings').doc(bookingId).get().then(doc => {
+    if (doc.exists) {
+      const booking = {id: bookingId, ...doc.data()};
+      
+      // Store in localStorage for the exit page
+      localStorage.setItem('exitBooking', JSON.stringify(booking));
+      
+      console.log("[EXIT] Initiating exit for booking:", bookingId);
+      
+      // Navigate to exit page
+      window.location.href = `slot-exit.html?bookingId=${bookingId}`;
+    } else {
+      showNotification("❌ Booking not found");
+    }
+  }).catch(error => {
+    console.error("Error fetching booking:", error);
+    showNotification("❌ Error loading booking data");
+  });
+}
+
+// Handle exit completion and return to parking page
+function handleExitCompletion(bookingId, exitData) {
+  if (!db) return;
+  
+  // Update Firebase with exit data
+  db.collection('bookings').doc(bookingId).update({
+    actualExitTime: new Date(),
+    lateFee: exitData.lateFee || 0,
+    totalAmount: exitData.totalAmount || 0,
+    status: 'ExitComplete'
+  }).then(() => {
+    console.log("[EXIT] Exit recorded successfully");
+    
+    // Save to GPS tracking
+    if (gpsEnabled) {
+      saveGPSSessionData(bookingId);
+    }
+    
+    showNotification("✓ Exit recorded successfully!");
+    
+    // Return to main page after delay
+    setTimeout(() => {
+      window.location.href = 'parking.html';
+    }, 3000);
+  }).catch(error => {
+    console.error("Error recording exit:", error);
+  });
+}
+
+// ============ END EXIT PARKING INTEGRATION ============
