@@ -2,9 +2,29 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Smart Parking - Exit Slot</title>
+  <title>genpark</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    .logo-container {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+    }
+    .logo-container a {
+      display: block;
+      text-decoration: none;
+    }
+    .logo-container img {
+      height: 50px;
+      width: auto;
+      border-radius: 5px;
+      transition: transform 0.3s ease;
+    }
+    .logo-container a:hover img {
+      transform: scale(1.05);
+    }
     
     body {
       font-family: Arial, sans-serif;
@@ -210,7 +230,13 @@
 </head>
 <body>
 
-<div class="container">
+<div class="logo-container">
+    <a href="main.html" title="GenPark Home">
+      <img src="logopg.jpeg" alt="GenPark Logo">
+    </a>
+  </div>
+
+  <div class="container">
   <div class="header">
     <h1>🚗 Exit Parking Slot</h1>
     <p>Complete your parking session</p>
@@ -299,40 +325,70 @@
 
   let bookingData = null;
   let timerInterval = null;
+  let entryTime = null;
+  let exitTime = null;
 
   // Initialize page
   window.addEventListener('load', () => {
-    const bookingId = new URLSearchParams(window.location.search).get('bookingId');
+    const params = new URLSearchParams(window.location.search);
+    const bookingId = params.get('bookingId');
+    const slot = params.get('slot');
+    const date = params.get('date');
+    const time = params.get('time');
+    
     if (bookingId) {
-      loadBookingData(bookingId);
+      loadLocalBookingData(bookingId, slot, date, time);
     } else {
       alert('No booking found. Redirecting...');
       window.location.href = 'main.html';
     }
   });
 
-  function loadBookingData(bookingId) {
-    db.collection('bookings').doc(bookingId).get().then(doc => {
-      if (doc.exists) {
-        bookingData = {id: bookingId, ...doc.data()};
-        displayBookingDetails();
-        startTimer();
-      } else {
-        alert('Booking not found');
-      }
-    });
+  function loadLocalBookingData(bookingId, slot, date, time) {
+    // Load from localStorage
+    const confirmation = localStorage.getItem('parkingConfirmation');
+    const slotData = localStorage.getItem('parkingSlotSelection');
+    
+    if (confirmation && slotData) {
+      const confirmData = JSON.parse(confirmation);
+      const slotInfo = JSON.parse(slotData);
+      
+      // Set entry time to now
+      entryTime = new Date();
+      
+      // Calculate exit time based on booked time
+      exitTime = new Date(slotInfo.parkingDate);
+      const [hours, mins] = slotInfo.parkingTime.split(':');
+      exitTime.setHours(parseInt(hours) + 1, parseInt(mins)); // 1 hour booking by default
+      
+      bookingData = {
+        id: bookingId,
+        lotName: confirmData.lotName,
+        entryTime: entryTime,
+        bookingEndTime: exitTime,
+        amount: confirmData.amount,
+        slot: slotInfo.selectedSlot,
+        parkingDate: slotInfo.parkingDate
+      };
+      
+      displayBookingDetails();
+      startTimer();
+    } else {
+      alert('Booking data not found. Please go back and complete booking.');
+      window.location.href = 'confirmation.html';
+    }
   }
 
   function displayBookingDetails() {
     const booking = bookingData;
-    document.getElementById('bookingId').textContent = bookingData.id.substring(0, 12) + '...';
+    document.getElementById('bookingId').textContent = booking.id.substring(0, 16) + '...';
     document.getElementById('lotName').textContent = booking.lotName || 'Unknown Lot';
     
-    const entryDate = booking.entryTime ? new Date(booking.entryTime.toDate()) : new Date();
-    document.getElementById('entryTime').textContent = entryDate.toLocaleTimeString();
+    const entryDate = booking.entryTime;
+    document.getElementById('entryTime').textContent = entryDate.toLocaleTimeString('en-US');
     
-    const exitDate = booking.bookingEndTime ? new Date(booking.bookingEndTime.toDate()) : new Date();
-    document.getElementById('bookedUntil').textContent = exitDate.toLocaleTimeString();
+    const exitDate = booking.bookingEndTime;
+    document.getElementById('bookedUntil').textContent = exitDate.toLocaleTimeString('en-US');
     
     document.getElementById('bookedAmount').textContent = '₹' + (booking.amount || 0);
   }
@@ -346,7 +402,7 @@
     if (!bookingData || !bookingData.bookingEndTime) return;
     
     const now = new Date();
-    const endTime = new Date(bookingData.bookingEndTime.toDate());
+    const endTime = bookingData.bookingEndTime;
     const diff = endTime - now;
     
     if (diff < 0) {
@@ -403,7 +459,7 @@
     if (!bookingData || !bookingData.bookingEndTime) return 0;
     
     const now = new Date();
-    const endTime = new Date(bookingData.bookingEndTime.toDate());
+    const endTime = bookingData.bookingEndTime;
     const overstayMs = now - endTime;
     
     if (overstayMs <= 0) return 0;
@@ -423,50 +479,66 @@
     const lateFee = calculateLateFee();
     const newTotal = (bookingData.amount || 0) + lateFee;
     
-    db.collection('bookings').doc(bookingData.id).update({
-      actualExitTime: new Date(),
+    // Save exit data to localStorage
+    const exitData = {
+      bookingId: bookingData.id,
+      lotName: bookingData.lotName,
+      slot: bookingData.slot,
+      entryTime: bookingData.entryTime.toISOString(),
+      exitTime: new Date().toISOString(),
+      bookedAmount: bookingData.amount,
       lateFee: lateFee,
-      newTotal: newTotal,
+      totalAmount: newTotal,
       status: 'Completed'
-    }).then(() => {
-      clearInterval(timerInterval);
-      
-      // Show success message
-      document.getElementById('buttonGroup').style.display = 'none';
-      document.getElementById('warningBox').style.display = 'none';
-      document.getElementById('successMessage').classList.add('show');
-      
-      // Update display
-      if (lateFee > 0) {
-        document.getElementById('successMessage').innerHTML = `
-          <h3>✓ Exit Recorded Successfully</h3>
-          <p>Original Amount: ₹${bookingData.amount}</p>
-          <p style="color:#f44336; font-size:18px;"><strong>Overstay Fine: +₹${lateFee}</strong></p>
-          <p style="font-size:20px; margin-top:10px;"><strong>Total: ₹${newTotal}</strong></p>
-          <p style="margin-top:15px; font-size:13px;">A receipt has been sent to your email.</p>
-        `;
-      }
-      
-      setTimeout(() => {
-        window.location.href = 'main.html';
-      }, 5000);
-    });
+    };
+    
+    localStorage.setItem('parkingExitData', JSON.stringify(exitData));
+    
+    clearInterval(timerInterval);
+    
+    // Show success message
+    document.getElementById('buttonGroup').style.display = 'none';
+    document.getElementById('warningBox').style.display = 'none';
+    document.getElementById('successMessage').classList.add('show');
+    
+    // Update display
+    if (lateFee > 0) {
+      document.getElementById('successMessage').innerHTML = `
+        <h3>✓ Exit Recorded Successfully</h3>
+        <p>Booked Amount: ₹${bookingData.amount}</p>
+        <p style="color:#f44336; font-size:18px;"><strong>Overstay Fine: +₹${lateFee}</strong></p>
+        <p style="font-size:20px; margin-top:10px;"><strong>Total Amount: ₹${newTotal}</strong></p>
+        <p style="margin-top:15px; font-size:13px;">Thank you for using GenPark!</p>
+      `;
+    } else {
+      document.getElementById('successMessage').innerHTML = `
+        <h3>✓ Exit Recorded Successfully</h3>
+        <p>Amount Paid: ₹${bookingData.amount}</p>
+        <p style="margin-top:15px; font-size:13px;">Thank you for using GenPark! No additional charges.</p>
+      `;
+    }
+    
+    setTimeout(() => {
+      window.location.href = 'main.html';
+    }, 5000);
   }
 
   function continueParking() {
     // Extend booking for another hour (example)
     const hours = 1;
-    const newEndTime = new Date(bookingData.bookingEndTime.toDate());
+    const newEndTime = new Date(bookingData.bookingEndTime);
     newEndTime.setHours(newEndTime.getHours() + hours);
     
-    db.collection('bookings').doc(bookingData.id).update({
-      bookingEndTime: newEndTime,
-      amount: (bookingData.amount || 0) + (100 * hours) // Add ₹100 per hour
-    }).then(() => {
-      bookingData.bookingEndTime = newEndTime;
-      displayBookingDetails();
-      alert(`Booking extended by ${hours} hour(s). Additional charge: ₹${100 * hours}`);
-    });
+    bookingData.bookingEndTime = newEndTime;
+    bookingData.amount = (bookingData.amount || 0) + (50 * hours); // Add ₹50 per hour
+    
+    // Update localStorage
+    const confirmation = JSON.parse(localStorage.getItem('parkingConfirmation'));
+    confirmation.amount = bookingData.amount;
+    localStorage.setItem('parkingConfirmation', JSON.stringify(confirmation));
+    
+    displayBookingDetails();
+    alert(`Booking extended by ${hours} hour(s). Additional charge: ₹${50 * hours}`);
   }
 
   function goBack() {

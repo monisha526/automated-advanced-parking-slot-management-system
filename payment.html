@@ -2,9 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Smart Parking System - Payment</title>
+  <title>genpark</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
+    .logo-container {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+    }
+    .logo-container a {
+      display: block;
+      text-decoration: none;
+    }
+    .logo-container img {
+      height: 50px;
+      width: auto;
+      border-radius: 5px;
+      transition: transform 0.3s ease;
+    }
+    .logo-container a:hover img {
+      transform: scale(1.05);
+    }
+    body { font-family: Arial, sans-serif; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
     h1 { color: darkblue; }
     .panel { border: 1px solid #ccc; padding: 15px; background: #f9f9f9; margin-top: 15px; }
     form input, form select, form button { margin-bottom: 10px; width: 250px; padding: 8px; }
@@ -29,15 +48,26 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
+  <div class="logo-container">
+    <a href="main.html" title="GenPark Home">
+      <img src="logopg.jpeg" alt="GenPark Logo">
+    </a>
+  </div>
   <parking class="js"></parking>
   <h1>🚗 Smart Parking Finder - Payment</h1>
   <div style="text-align: right; margin-bottom: 15px;">
     <a href="ai-chat.html" style="background: #667eea; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-weight: bold;">💬 Chat Support</a>
   </div>
   <div class="panel">
-    <h2>Pay Online</h2>
+    <h2>Your Booking Summary</h2>
     <p><strong>Lot:</strong> <span id="paymentLotName"></span></p>
+    <p id="slotNumberDisplay"></p>
+    <p id="parkingDateDisplay"></p>
+    <p id="parkingTimeDisplay"></p>
     <p><strong>Amount:</strong> ₹<span id="paymentAmount"></span></p>
+  </div>
+  <div class="panel">
+    <h2>Pay Online</h2>
     <label for="paymentGateway">Choose Payment Method:</label><br>
     <select id="paymentGateway" onchange="updatePaymentFields()">
       <option value="razorpay">Razorpay (UPI/Card)</option>
@@ -132,6 +162,8 @@
         payerEmail,
         bookedAt: new Date().toISOString()
       };
+      
+      // Keep slot selection data in localStorage for confirmation page
       localStorage.setItem("parkingConfirmation", JSON.stringify(confirmationData));
 
       // redirect to confirmation page
@@ -141,6 +173,8 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const saved = localStorage.getItem('parkingPayment');
+      const slotData = localStorage.getItem('parkingSlotSelection');
+      
       if (!saved) {
         alert('No parking slot selected.');
         return;
@@ -149,6 +183,34 @@
       const data = JSON.parse(saved);
       document.getElementById('paymentLotName').textContent = data.lotName;
       document.getElementById('paymentAmount').textContent = data.amount;
+
+      // Display slot details if available
+      if (slotData) {
+        const slot = JSON.parse(slotData);
+        
+        const slotDisplay = document.getElementById('slotNumberDisplay');
+        const dateDisplay = document.getElementById('parkingDateDisplay');
+        const timeDisplay = document.getElementById('parkingTimeDisplay');
+
+        if (slotDisplay && slot.selectedSlot) {
+          slotDisplay.innerHTML = `<strong>Selected Slot:</strong> ${slot.selectedSlot}`;
+        }
+
+        if (dateDisplay && slot.parkingDate) {
+          const dateObj = new Date(slot.parkingDate);
+          const formattedDate = dateObj.toLocaleDateString('en-US', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+          dateDisplay.innerHTML = `<strong>Parking Date:</strong> ${formattedDate}`;
+        }
+
+        if (timeDisplay && slot.parkingTime) {
+          timeDisplay.innerHTML = `<strong>From Time:</strong> ${slot.parkingTime}`;
+        }
+      }
     });
   </script>
   <!-- AI Chat Widget -->

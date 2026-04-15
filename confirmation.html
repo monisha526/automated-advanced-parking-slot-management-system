@@ -2,9 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Smart Parking System - Confirmation</title>
+  <title>genpark</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
+    .logo-container {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+    }
+    .logo-container a {
+      display: block;
+      text-decoration: none;
+    }
+    .logo-container img {
+      height: 50px;
+      width: auto;
+      border-radius: 5px;
+      transition: transform 0.3s ease;
+    }
+    .logo-container a:hover img {
+      transform: scale(1.05);
+    }
+    body { font-family: Arial, sans-serif; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
     h1 { color: darkblue; }
     .panel { border: 1px solid #ccc; padding: 15px; background: #e8f5e9; margin-top: 15px; border-radius: 5px; }
     .qr-section { text-align: center; margin-top: 20px; padding: 15px; background: white; border-radius: 5px; }
@@ -14,6 +33,11 @@
   </style>
 </head>
 <body>
+  <div class="logo-container">
+    <a href="main.html" title="GenPark Home">
+      <img src="logopg.jpeg" alt="GenPark Logo">
+    </a>
+  </div>
   <h1>🚗 Smart Parking Finder - Confirmation</h1>
   <div style="text-align: right; margin-bottom: 15px;">
     <a href="ai-chat.html" style="background: #667eea; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-weight: bold;">💬 Chat Support</a>
@@ -76,31 +100,70 @@
     }
     
     function exitParking() {
-      // Get booking ID from localStorage or session
+      // Get booking ID from localStorage
       const bookingId = localStorage.getItem('lastBookingId');
-      if (bookingId) {
-        window.location.href = 'slot-exit.html?bookingId=' + bookingId;
+      const slotData = localStorage.getItem('parkingSlotSelection');
+      
+      if (bookingId && slotData) {
+        const slot = JSON.parse(slotData);
+        window.location.href = `slot-exit.html?bookingId=${bookingId}&slot=${slot.selectedSlot}&date=${slot.parkingDate}&time=${slot.parkingTime}`;
       } else {
-        alert('Booking ID not found. Please refresh the page.');
+        alert('Booking information not found. Please try again.');
       }
+    }
+
+    function goHome() {
+      // Clear booking data and go back to main page
+      localStorage.removeItem('parkingConfirmation');
+      localStorage.removeItem('parkingPayment');
+      localStorage.removeItem('parkingSlotSelection');
+      localStorage.removeItem('selectedLotIndex');
+      window.location.href = 'main.html';
     }
   </script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       const saved = localStorage.getItem("parkingConfirmation");
+      const slotData = localStorage.getItem("parkingSlotSelection");
+      
       if (!saved) {
         document.getElementById("confirmationText").textContent =
           "No booking data found. Please complete payment first.";
         return;
       }
 
+      // Generate unique booking ID
+      const bookingId = 'BK' + Date.now() + Math.random().toString(36).substr(2, 9).toUpperCase();
+      localStorage.setItem('lastBookingId', bookingId);
+
       const data = JSON.parse(saved);
-      document.getElementById("confirmationText").textContent =
-        `Your slot at ${data.lotName} is confirmed. Amount paid: ₹${data.amount}. ` +
-        `Paid by ${data.payerName} (${data.payerEmail}).`;
+      let confirmText = `Your slot at ${data.lotName} is confirmed. Amount paid: ₹${data.amount}. ` +
+        `Paid by ${data.payerName} (${data.payerEmail}). Booking ID: ${bookingId}`;
+
+      // Add slot details if available
+      if (slotData) {
+        const slot = JSON.parse(slotData);
+        const dateObj = new Date(slot.parkingDate);
+        const formattedDate = dateObj.toLocaleDateString('en-US', {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+        confirmText += ` Selected Slot: ${slot.selectedSlot}. Date: ${formattedDate}. Time: ${slot.parkingTime}.`;
+      }
+
+      document.getElementById("confirmationText").textContent = confirmText;
+
+      // Generate QR code with slot details including booking ID
+      let qrData = `Booking:${bookingId}|Parking:${data.lotName}|Amount:${data.amount}|Name:${data.payerName}`;
+      if (slotData) {
+        const slot = JSON.parse(slotData);
+        qrData += `|Slot:${slot.selectedSlot}|Date:${slot.parkingDate}|Time:${slot.parkingTime}`;
+      }
 
       new QRCode(document.getElementById("qrCanvas"), {
-        text: `Parking:${data.lotName}|Amount:${data.amount}|Name:${data.payerName}`,
+        text: qrData,
         width: 200,
         height: 200
       });

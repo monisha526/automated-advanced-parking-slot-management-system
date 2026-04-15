@@ -2,9 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Smart Parking System - History</title>
+  <title>genpark</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
+    .logo-container {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+    }
+    .logo-container a {
+      display: block;
+      text-decoration: none;
+    }
+    .logo-container img {
+      height: 50px;
+      width: auto;
+      border-radius: 5px;
+      transition: transform 0.3s ease;
+    }
+    .logo-container a:hover img {
+      transform: scale(1.05);
+    }
+    body { font-family: Arial, sans-serif; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
     h1 { color: darkblue; }
     .section { margin-bottom: 30px; }
     .booking-item { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; }
@@ -12,6 +31,11 @@
   </style>
 </head>
 <body>
+  <div class="logo-container">
+    <a href="main.html" title="GenPark Home">
+      <img src="logopg.jpeg" alt="GenPark Logo">
+    </a>
+  </div>
   <h1>🚗 Smart Parking Finder - Booking History</h1>
   <div class="section">
     <h2>Your Bookings</h2>

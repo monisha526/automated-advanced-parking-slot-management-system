@@ -2,9 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Smart Parking System - Main</title>
+  <title>genpark</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
+    .logo-container {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+    }
+    .logo-container a {
+      display: block;
+      text-decoration: none;
+    }
+    .logo-container img {
+      height: 50px;
+      width: auto;
+      border-radius: 5px;
+      transition: transform 0.3s ease;
+    }
+    .logo-container a:hover img {
+      transform: scale(1.05);
+    }
+    body { font-family: Arial, sans-serif; margin: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
     h1 { color: darkblue; }
     .section { margin-bottom: 30px; }
     .parking-lot { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; }
@@ -16,6 +35,11 @@
   </style>
 </head>
 <body>
+  <div class="logo-container">
+    <a href="main.html" title="GenPark Home">
+      <img src="logopg.jpeg" alt="GenPark Logo">
+    </a>
+  </div>
   <h1>🚗 Smart Parking Finder</h1>
   <p>Welcome, <span id="userName"></span>! Find parking near you.</p>
   <div id="notification" class="notification hidden"></div>
@@ -83,18 +107,9 @@
     function bookSlot(index) {
       const lot = parkingLots[index];
       if (lot.slots > 0) {
-        lot.slots -= 1;
-
-        const prepaidAmount = 40;
-        const paymentData = {
-          lotName: lot.name,
-          amount: prepaidAmount,
-          ownerShare: prepaidAmount * 0.5,
-          platformShare: prepaidAmount * 0.5
-        };
-
-        localStorage.setItem('parkingPayment', JSON.stringify(paymentData));
-        window.location.href = 'payment.html';
+        // Store the selected lot index and redirect to visual slot selection
+        localStorage.setItem('selectedLotIndex', index.toString());
+        window.location.href = 'slot-selector.html';
       }
     }     
     function registerLot() {

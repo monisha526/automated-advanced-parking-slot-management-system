@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>genpark</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    .logo-container {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+    }
+    .logo-container a {
+      display: block;
+      text-decoration: none;
+    }
+    .logo-container img {
+      height: 50px;
+      width: auto;
+      border-radius: 5px;
+      transition: transform 0.3s ease;
+    }
+    .logo-container a:hover img {
+      transform: scale(1.05);
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 40px;
+    }
+
+    .lot-info {
+      background: #f8f9ff;
+      border-left: 5px solid #667eea;
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 8px;
+    }
+
+    .lot-info p {
+      font-size: 16px;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .lot-info strong {
+      color: #667eea;
+    }
+
+    .section-title {
+      font-size: 20px;
+      color: #333;
+      margin-bottom: 20px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 5px;
+      height: 24px;
+      background: #667eea;
+      border-radius: 3px;
+      margin-right: 12px;
+    }
+
+    .date-time-section {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .input-group label {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .input-group input {
+      padding: 12px 15px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .input-group input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .slots-grid-section {
+      margin-bottom: 40px;
+    }
+
+    .slots-info {
+      display: flex;
+      gap: 30px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .slot-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .status-box {
+      width: 30px;
+      height: 30px;
+      border-radius: 4px;
+      border: 2px solid;
+    }
+
+    .available {
+      background-color: #4caf50;
+      border-color: #2e7d32;
+    }
+
+    .occupied {
+      background-color: #f44336;
+      border-color: #c62828;
+    }
+
+    .reserved {
+      background-color: #ff9800;
+      border-color: #e65100;
+    }
+
+    .selected {
+      background-color: #2196f3;
+      border-color: #0d47a1;
+    }
+
+    .slots-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+      gap: 15px;
+      padding: 25px;
+      background: #f9f9f9;
+      border-radius: 12px;
+      border: 2px solid #e0e0e0;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .parking-slot {
+      width: 70px;
+      height: 70px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #333;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      color: white;
+    }
+
+    .parking-slot.slot-available {
+      background-color: #4caf50;
+      border-color: #2e7d32;
+    }
+
+    .parking-slot.slot-available:hover {
+      transform: scale(1.08);
+      box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+    }
+
+    .parking-slot.slot-occupied {
+      background-color: #f44336;
+      border-color: #c62828;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .parking-slot.slot-reserved {
+      background-color: #ff9800;
+      border-color: #e65100;
+      cursor: not-allowed;
+    }
+
+    .parking-slot.slot-selected {
+      background-color: #2196f3;
+      border-color: #0d47a1;
+      box-shadow: 0 0 15px rgba(33, 150, 243, 0.5);
+      transform: scale(1.1);
+    }
+
+    .selection-summary {
+      background: #e3f2fd;
+      border-left: 5px solid #2196f3;
+      padding: 20px;
+      margin-bottom: 30px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .selection-summary.show {
+      display: block;
+    }
+
+    .selection-summary h3 {
+      color: #1565c0;
+      margin-bottom: 15px;
+      font-size: 16px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .summary-label {
+      color: #555;
+      font-weight: 500;
+    }
+
+    .summary-value {
+      color: #2196f3;
+      font-weight: 600;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+    }
+
+    button {
+      padding: 14px 40px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .btn-proceed {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-proceed:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-proceed:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-cancel {
+      background: #f5f5f5;
+      color: #333;
+      border: 2px solid #ddd;
+    }
+
+    .btn-cancel:hover {
+      background: #e0e0e0;
+      border-color: #999;
+    }
+
+    .error-message {
+      background: #ffebee;
+      border-left: 4px solid #f44336;
+      color: #c62828;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      .content {
+        padding: 20px;
+      }
+
+      .date-time-section {
+        grid-template-columns: 1fr;
+      }
+
+      .slots-grid {
+        grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+      }
+
+      .parking-slot {
+        width: 60px;
+        height: 60px;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <a href="main.html" title="GenPark Home">
+      <img src="logopg.jpeg" alt="GenPark Logo">
+    </a>
+  </div>
+  <div class="container">
+    <div class="header">
+      <h1>🅿️ Select Your Parking Slot</h1>
+      <p>Choose your preferred slot and timing</p>
+    </div>
+
+    <div class="content">
+      <!-- Lot Information -->
+      <div class="lot-info">
+        <p><strong>Parking Lot:</strong> <span id="lotName"></span></p>
+        <p><strong>Location:</strong> <span id="lotLocation"></span></p>
+        <p><strong>Total Available Slots:</strong> <span id="totalAvailable"></span></p>
+      </div>
+
+      <!-- Error Message -->
+      <div class="error-message" id="errorMessage"></div>
+
+      <!-- Date & Time Selection -->
+      <div class="section-title">📅 Choose Date & Time</div>
+      <div class="date-time-section">
+        <div class="input-group">
+          <label for="parkingDate">Parking Date:</label>
+          <input type="date" id="parkingDate" required>
+        </div>
+        <div class="input-group">
+          <label for="parkingTime">From Time:</label>
+          <input type="time" id="parkingTime" required>
+        </div>
+      </div>
+
+      <!-- Slot Selection -->
+      <div class="slots-grid-section">
+        <div class="section-title">🎯 Select Your Preferred Slot</div>
+
+        <!-- Slot Status Legend -->
+        <div class="slots-info">
+          <div class="slot-status">
+            <div class="status-box available"></div>
+            <span>Available</span>
+          </div>
+          <div class="slot-status">
+            <div class="status-box occupied"></div>
+            <span>Occupied</span>
+          </div>
+          <div class="slot-status">
+            <div class="status-box reserved"></div>
+            <span>Reserved</span>
+          </div>
+          <div class="slot-status">
+            <div class="status-box selected"></div>
+            <span>Selected by You</span>
+          </div>
+        </div>
+
+        <!-- Slots Grid -->
+        <div class="slots-grid" id="slotsGrid"></div>
+      </div>
+
+      <!-- Selection Summary -->
+      <div class="selection-summary" id="selectionSummary">
+        <h3>✅ Your Selection</h3>
+        <div class="summary-row">
+          <span class="summary-label">Selected Slot:</span>
+          <span class="summary-value" id="summarySlot">-</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Date:</span>
+          <span class="summary-value" id="summaryDate">-</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Time:</span>
+          <span class="summary-value" id="summaryTime">-</span>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="button-group">
+        <button class="btn-cancel" onclick="goBack()">Back to Lots</button>
+        <button class="btn-proceed" id="proceedBtn" disabled onclick="proceedToPayment()">Proceed to Payment</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Data
+    let parkingLots = [
+      {name: "City Center Parking", location: "Downtown", slots: 15},
+      {name: "Airport Parking", location: "Airport Road", slots: 10},
+      {name: "Beachside Parking", location: "Beach", slots: 13},
+      {name: "Mall Parking", location: "Mall", slots: 22},
+      {name: "Temple Parking", location: "Temple", slots: 44},
+      {name: "Station Parking", location: "Station", slots: 15},
+      {name: "Hospital Parking", location: "Hospital", slots: 10},
+      {name: "Market Parking", location: "Market", slots: 16},
+      {name: "Park Parking", location: "Park", slots: 12},
+      {name: "School Parking", location: "School", slots: 15}
+    ];
+
+    let selectedLotIndex = null;
+    let selectedSlot = null;
+    let selectedDate = null;
+    let selectedTime = null;
+
+    // Initialize page
+    function initPage() {
+      selectedLotIndex = localStorage.getItem('selectedLotIndex');
+      
+      if (selectedLotIndex === null) {
+        showError("No parking lot selected. Please go back and select a lot.");
+        setTimeout(() => window.location.href = 'main.html', 2000);
+        return;
+      }
+
+      selectedLotIndex = parseInt(selectedLotIndex);
+      const lot = parkingLots[selectedLotIndex];
+      
+      // Display lot information
+      document.getElementById('lotName').textContent = lot.name;
+      document.getElementById('lotLocation').textContent = lot.location;
+      document.getElementById('totalAvailable').textContent = lot.slots;
+
+      // Generate slots
+      generateSlots(lot.slots);
+
+      // Set minimum date to today
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('parkingDate').min = today;
+      document.getElementById('parkingDate').value = today;
+      selectedDate = today;
+
+      // Add event listeners
+      document.getElementById('parkingDate').addEventListener('change', updateSelection);
+      document.getElementById('parkingTime').addEventListener('change', updateSelection);
+
+      // Set current time
+      const now = new Date();
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      document.getElementById('parkingTime').value = `${hours}:${minutes}`;
+      selectedTime = `${hours}:${minutes}`;
+    }
+
+    // Generate slot elements
+    function generateSlots(totalSlots) {
+      const grid = document.getElementById('slotsGrid');
+      grid.innerHTML = '';
+
+      // Randomly mark some slots as occupied/reserved for demo
+      const occupiedSlots = new Set();
+      const reservedSlots = new Set();
+      
+      // Randomly make 30-40% of slots unavailable
+      const unavailableCount = Math.ceil(totalSlots * 0.35);
+      for (let i = 0; i < unavailableCount; i++) {
+        const randomSlot = Math.floor(Math.random() * totalSlots);
+        if (Math.random() < 0.6) {
+          occupiedSlots.add(randomSlot);
+        } else {
+          reservedSlots.add(randomSlot);
+        }
+      }
+
+      for (let i = 1; i <= totalSlots; i++) {
+        const slotDiv = document.createElement('div');
+        slotDiv.className = 'parking-slot';
+        slotDiv.textContent = `A${i}`;
+        
+        if (occupiedSlots.has(i - 1)) {
+          slotDiv.classList.add('slot-occupied');
+          slotDiv.setAttribute('data-status', 'occupied');
+        } else if (reservedSlots.has(i - 1)) {
+          slotDiv.classList.add('slot-reserved');
+          slotDiv.setAttribute('data-status', 'reserved');
+        } else {
+          slotDiv.classList.add('slot-available');
+          slotDiv.setAttribute('data-status', 'available');
+          slotDiv.setAttribute('data-slot', `A${i}`);
+          slotDiv.addEventListener('click', function() {
+            selectSlot(this);
+          });
+        }
+        
+        grid.appendChild(slotDiv);
+      }
+    }
+
+    // Select a slot
+    function selectSlot(element) {
+      // Remove previous selection
+      document.querySelectorAll('.parking-slot.slot-selected').forEach(slot => {
+        slot.classList.remove('slot-selected');
+      });
+
+      // Add selection to clicked slot
+      element.classList.add('slot-selected');
+      selectedSlot = element.getAttribute('data-slot');
+      
+      updateSelection();
+    }
+
+    // Update selection summary
+    function updateSelection() {
+      selectedDate = document.getElementById('parkingDate').value;
+      selectedTime = document.getElementById('parkingTime').value;
+
+      if (selectedSlot && selectedDate && selectedTime) {
+        document.getElementById('summarySlot').textContent = selectedSlot;
+        
+        const dateObj = new Date(selectedDate);
+        const formattedDate = dateObj.toLocaleDateString('en-US', {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+        document.getElementById('summaryDate').textContent = formattedDate;
+        document.getElementById('summaryTime').textContent = selectedTime;
+
+        document.getElementById('selectionSummary').classList.add('show');
+        document.getElementById('proceedBtn').disabled = false;
+      } else {
+        document.getElementById('selectionSummary').classList.remove('show');
+        document.getElementById('proceedBtn').disabled = true;
+      }
+    }
+
+    // Show error message
+    function showError(message) {
+      const errorDiv = document.getElementById('errorMessage');
+      errorDiv.textContent = message;
+      errorDiv.classList.add('show');
+    }
+
+    // Go back to main page
+    function goBack() {
+      window.location.href = 'main.html';
+    }
+
+    // Proceed to payment
+    function proceedToPayment() {
+      if (!selectedSlot || !selectedDate || !selectedTime) {
+        showError('Please select a slot, date, and time.');
+        return;
+      }
+
+      const lot = parkingLots[selectedLotIndex];
+      const prepaidAmount = 50;
+
+      const slotData = {
+        lotName: lot.name,
+        lotLocation: lot.location,
+        selectedSlot: selectedSlot,
+        parkingDate: selectedDate,
+        parkingTime: selectedTime,
+        amount: prepaidAmount,
+        ownerShare: prepaidAmount * 0.5,
+        platformShare: prepaidAmount * 0.5
+      };
+
+      localStorage.setItem('parkingSlotSelection', JSON.stringify(slotData));
+      localStorage.setItem('parkingPayment', JSON.stringify({
+        lotName: lot.name,
+        amount: prepaidAmount,
+        ownerShare: prepaidAmount * 0.5,
+        platformShare: prepaidAmount * 0.5
+      }));
+
+      window.location.href = 'payment.html';
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', initPage);
+  </script>
+</body>
+</html>
