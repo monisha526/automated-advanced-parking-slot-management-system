@@ -31,6 +31,9 @@
 <body>
   <parking class="js"></parking>
   <h1>🚗 Smart Parking Finder - Payment</h1>
+  <div style="text-align: right; margin-bottom: 15px;">
+    <a href="ai-chat.html" style="background: #667eea; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; font-weight: bold;">💬 Chat Support</a>
+  </div>
   <div class="panel">
     <h2>Pay Online</h2>
     <p><strong>Lot:</strong> <span id="paymentLotName"></span></p>
@@ -148,5 +151,7 @@
       document.getElementById('paymentAmount').textContent = data.amount;
     });
   </script>
+  <!-- AI Chat Widget -->
+  <script src="ai-chat.js"></script>
 </body>
 </html>

@@ -7,9 +7,6 @@
   appId: "1:123456789:web:groundstation-494"
 };
 
-// Debug logging
-console.log("🚗 Parking.js loaded - Version with GPS Tracking");
-
 // Initialize Firebase
 const app = firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();  // ← ADD THIS LINE
@@ -19,398 +16,7 @@ const auth = firebase.auth();      // ← ADD THIS LINE
 let selectedSlots = [];
 let userMarker = null;
 
-// Map and Navigation variables
-let map = null;
-let userLocation = null;
-let selectedLotIndex = null;
-let directionsService = null;
-let directionsRenderer = null;
-let currentUser = null;
-
-// ============ GPS TRACKING SYSTEM ============
-// GPS Configuration
-const gpsConfig = {
-  trackingInterval: 5000, // Update every 5 seconds
-  highAccuracyMode: true,
-  geofenceRadius: 100, // 100 meters for arrival detection
-  maxSpeedThreshold: 150, // km/h - for anomaly detection
-  accuracyThreshold: 50 // meters
-};
-
-// GPS tracking variables
-let gpsEnabled = false;
-let currentSpeed = 0;
-let currentHeading = 0;
-let gpsAccuracy = 0;
-let locationHistory = [];
-let gpsWatchId = null;
-let lastPosition = null;
-let movementTracker = {
-  totalDistance: 0,
-  maxSpeed: 0,
-  avgSpeed: 0,
-  startTime: null,
-  path: []
-};
-let headingMarker = null;
-let arrivalDetected = false;
-
-// Initialize GPS tracking
-function initializeGPSTracking() {
-  console.log("[GPS] Initializing GPS tracking...");
-  
-  if (!navigator.geolocation) {
-    console.error("[GPS] Geolocation API not supported");
-    showNotification("❌ GPS not supported on this device.");
-    return false;
-  }
-  
-  console.log("[GPS] Geolocation API available");
-  gpsEnabled = true;
-  showNotification("📍 GPS Tracking Started");
-  
-  // Start watching location with high accuracy
-  gpsWatchId = navigator.geolocation.watchPosition(
-    handleGPSSuccess,
-    handleGPSError,
-    {
-      enableHighAccuracy: gpsConfig.highAccuracyMode,
-      timeout: 10000,
-      maximumAge: 0
-    }
-  );
-  
-  console.log("[GPS] Watch ID:", gpsWatchId);
-  
-  // Update GPS status display
-  updateGPSStatusDisplay();
-  return true;
-}
-
-// Handle successful GPS position update
-function handleGPSSuccess(position) {
-  const newLocation = {
-    lat: position.coords.latitude,
-    lng: position.coords.longitude,
-    timestamp: position.timestamp
-  };
-  
-  // Update GPS accuracy and heading
-  gpsAccuracy = position.coords.accuracy;
-  currentHeading = position.coords.heading || 0;
-  
-  console.log("[GPS] Position update:", {
-    lat: newLocation.lat.toFixed(6),
-    lng: newLocation.lng.toFixed(6),
-    accuracy: gpsAccuracy.toFixed(2),
-    heading: currentHeading.toFixed(2)
-  });
-  
-  // Calculate speed if available
-  if (position.coords.speed !== null) {
-    currentSpeed = position.coords.speed * 3.6; // Convert m/s to km/h
-    movementTracker.maxSpeed = Math.max(movementTracker.maxSpeed, currentSpeed);
-  }
-  
-  // Calculate distance and bearing from last position
-  if (lastPosition) {
-    const distance = calculateDistance(
-      lastPosition.lat,
-      lastPosition.lng,
-      newLocation.lat,
-      newLocation.lng
-    );
-    movementTracker.totalDistance += distance;
-    
-    // Calculate heading based on position change if device heading not available
-    if (!position.coords.heading) {
-      currentHeading = calculateBearing(
-        lastPosition.lat,
-        lastPosition.lng,
-        newLocation.lat,
-        newLocation.lng
-      );
-    }
-  }
-  
-  // Add to location history
-  locationHistory.push({
-    ...newLocation,
-    speed: currentSpeed,
-    accuracy: gpsAccuracy,
-    heading: currentHeading
-  });
-  
-  // Keep only last 100 points
-  if (locationHistory.length > 100) {
-    locationHistory.shift();
-  }
-  
-  // Update user location
-  lastPosition = newLocation;
-  userLocation = newLocation;
-  
-  // Update GPS data in local storage
-  localStorage.setItem('lastGPSData', JSON.stringify({
-    location: newLocation,
-    speed: currentSpeed,
-    accuracy: gpsAccuracy,
-    heading: currentHeading,
-    timestamp: new Date().toISOString()
-  }));
-  
-  // Update map marker and accuracy circle
-  if (map) {
-    updateUserLocationMarker();
-    updateGPSStatusDisplay();
-  }
-  
-  // Check for lot arrival (geofencing)
-  if (selectedLotIndex !== null) {
-    checkLotArrival(newLocation);
-  }
-}
-
-// Handle GPS error
-function handleGPSError(error) {
-  let errorMessage = "❌ GPS Error: ";
-  switch(error.code) {
-    case error.PERMISSION_DENIED:
-      errorMessage += "Permission denied. Please enable location access.";
-      break;
-    case error.POSITION_UNAVAILABLE:
-      errorMessage += "Position unavailable. Check GPS signal.";
-      break;
-    case error.TIMEOUT:
-      errorMessage += "GPS request timed out.";
-      break;
-    default:
-      errorMessage += "Unknown GPS error.";
-  }
-  showNotification(errorMessage);
-  console.error("GPS Error:", error);
-}
-
-// Calculate bearing between two points
-function calculateBearing(lat1, lon1, lat2, lon2) {
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const lat1Rad = lat1 * Math.PI / 180;
-  const lat2Rad = lat2 * Math.PI / 180;
-  
-  const y = Math.sin(dLon) * Math.cos(lat2Rad);
-  const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
-            Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
-  
-  const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-  return bearing;
-}
-
-// Check if user has arrived at parking lot (geofencing)
-function checkLotArrival(currentPos) {
-  if (arrivalDetected || selectedLotIndex === null) return;
-  
-  const lot = parkingLots[selectedLotIndex];
-  const distance = calculateDistance(
-    currentPos.lat,
-    currentPos.lng,
-    lot.lat,
-    lot.lng
-  ) * 1000; // Convert to meters
-  
-  if (distance <= gpsConfig.geofenceRadius) {
-    arrivalDetected = true;
-    
-    // Trigger arrival notification
-    const notification = `🎯 You've arrived at ${lot.name}! Your location: ${distance.toFixed(1)}m away`;
-    showNotification(notification);
-    
-    // Log arrival in Firestore
-    logLotArrival(lot.name, distance);
-    
-    // Play arrival sound if available
-    playArrivalSound();
-  }
-}
-
-// Log lot arrival to Firestore
-function logLotArrival(lotName, distance) {
-  if (!db || !auth.currentUser) return;
-  
-  db.collection('lot_arrivals').add({
-    lotName: lotName,
-    userId: auth.currentUser.uid,
-    arrivalTime: new Date(),
-    distance: distance,
-    accuracy: gpsAccuracy
-  }).catch(error => {
-    console.error("Error logging arrival:", error);
-  });
-}
-
-// Play arrival notification sound
-function playArrivalSound() {
-  try {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(1, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
-  } catch (e) {
-    console.log("Audio context not available");
-  }
-}
-
-// Update GPS status display UI
-function updateGPSStatusDisplay() {
-  // Ensure DOM is ready
-  if (!document.body) {
-    setTimeout(() => updateGPSStatusDisplay(), 100);
-    return;
-  }
-  
-  let statusDiv = document.getElementById('gpsStatusDisplay');
-  
-  if (!statusDiv) {
-    statusDiv = document.createElement('div');
-    statusDiv.id = 'gpsStatusDisplay';
-    statusDiv.style.cssText = `
-      position: fixed;
-      top: 100px;
-      right: 20px;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 15px;
-      border-radius: 10px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-      font-family: monospace;
-      font-size: 12px;
-      z-index: 9998;
-      min-width: 280px;
-      border: 2px solid #4facfe;
-    `;
-    document.body.appendChild(statusDiv);
-  }
-  
-  const speedColor = currentSpeed > 80 ? '#f44336' : '#4caf50';
-  const accuracyColor = gpsAccuracy < 50 ? '#4caf50' : (gpsAccuracy < 100 ? '#ff9800' : '#f44336');
-  
-  statusDiv.innerHTML = `
-    <div style="font-weight: bold; color: #333; margin-bottom: 10px;">📍 GPS Status</div>
-    <div style="margin: 5px 0;">
-      <strong>Status:</strong> <span style="color: ${gpsEnabled ? '#4caf50' : '#f44336'};"> ${gpsEnabled ? '🔴 Active' : '⚪ Inactive'}</span>
-    </div>
-    <div style="margin: 5px 0;">
-      <strong>Accuracy:</strong> <span style="color: ${accuracyColor};">${gpsAccuracy.toFixed(1)}m</span>
-    </div>
-    <div style="margin: 5px 0;">
-      <strong>Speed:</strong> <span style="color: ${speedColor};">${currentSpeed.toFixed(1)} km/h</span>
-    </div>
-    <div style="margin: 5px 0;">
-      <strong>Heading:</strong> ${currentHeading.toFixed(0)}° <span style="font-size: 10px;">(${getHeadingDirection(currentHeading)})</span>
-    </div>
-    <div style="margin: 5px 0;">
-      <strong>Distance Traveled:</strong> ${movementTracker.totalDistance.toFixed(2)} km
-    </div>
-    <div style="margin: 5px 0; font-size: 11px; color: #666;">
-      Lat: ${userLocation?.lat?.toFixed(6) || 'N/A'}<br>
-      Lng: ${userLocation?.lng?.toFixed(6) || 'N/A'}
-    </div>
-    <button onclick="toggleGPSTracking()" style="
-      width: 100%;
-      margin-top: 10px;
-      padding: 6px;
-      background: ${gpsEnabled ? '#f44336' : '#4caf50'};
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-weight: bold;
-    ">${gpsEnabled ? 'Stop GPS' : 'Start GPS'}</button>
-  `;
-}
-
-// Convert heading degrees to compass direction
-function getHeadingDirection(heading) {
-  const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-  const index = Math.round(heading / 22.5) % 16;
-  return directions[index];
-}
-
-// Toggle GPS tracking on/off
-function toggleGPSTracking() {
-  if (gpsEnabled) {
-    stopGPSTracking();
-  } else {
-    initializeGPSTracking();
-  }
-}
-
-// Stop GPS tracking
-function stopGPSTracking() {
-  if (gpsWatchId) {
-    navigator.geolocation.clearWatch(gpsWatchId);
-    gpsWatchId = null;
-    gpsEnabled = false;
-    showNotification("📍 GPS Tracking Stopped");
-    updateGPSStatusDisplay();
-  }
-}
-
-// Get GPS data for current session
-function getGPSSessionData() {
-  return {
-    gpsEnabled: gpsEnabled,
-    currentSpeed: currentSpeed,
-    currentHeading: currentHeading,
-    accuracy: gpsAccuracy,
-    totalDistance: movementTracker.totalDistance,
-    maxSpeed: movementTracker.maxSpeed,
-    locationHistory: locationHistory,
-    arrivalDetected: arrivalDetected
-  };
-}
-
-// Save GPS session data to Firebase
-function saveGPSSessionData(bookingId) {
-  if (!db || !bookingId) return;
-  
-  const sessionData = getGPSSessionData();
-  
-  db.collection('bookings').doc(bookingId).update({
-    gpsTrackingData: {
-      enabled: sessionData.gpsEnabled,
-      totalDistance: sessionData.totalDistance,
-      maxSpeed: sessionData.maxSpeed,
-      pointCount: sessionData.locationHistory.length,
-      arrivalDetected: sessionData.arrivalDetected,
-      endTime: new Date()
-    }
-  }).then(() => {
-    console.log("GPS session data saved for booking:", bookingId);
-  }).catch(error => {
-    console.error("Error saving GPS data:", error);
-  });
-}
-
-// ============ END GPS TRACKING SYSTEM ============
-
 // ============ LATE FEE SYSTEM ============
-// Late fee configuration
-const LATE_FEE_CONFIG = {
-  minimumChargeAmount: 20, // ₹20 base charge
-  minimumChargeMinutes: 10, // For first 10 minutes
-  chargePerMinute: 2 // ₹2 per minute after 10 minutes
-};
-
 // Calculate late fee based on overstay duration
 function calculateLateFee(bookingEndTime, actualExitTime) {
   const endTime = new Date(bookingEndTime);
@@ -751,7 +357,7 @@ function initMap() {
   });
 
   updateMapMarkers();
-  initializeGPSTracking();
+  startRealTimeLocationTracking();
   listenToAllSlotsRealTime();
   
   showNotification("Map loaded. Click 'Use My Location' to start.");
@@ -759,29 +365,38 @@ function initMap() {
 
 // Real-time location tracking
 function startRealTimeLocationTracking() {
-  // This function is deprecated - use initializeGPSTracking() instead
-  console.log("startRealTimeLocationTracking() is deprecated. Using enhanced GPS system.");
-}
+  if (!navigator.geolocation) {
+    showNotification("Geolocation not supported on this device.");
+    return;
+  }
 
+  // Track location continuously (every 10 seconds)
+  setInterval(() => {
+    navigator.geolocation.getCurrentPosition((position) => {
+      const newLocation = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude
+      };
+
+      // Only update if location changed significantly
+      if (!userLocation || 
+          (Math.abs(userLocation.lat - newLocation.lat) > 0.0001 || 
+           Math.abs(userLocation.lng - newLocation.lng) > 0.0001)) {
+        
+        userLocation = newLocation;
+        updateUserLocationMarker();
+        updateDistancesToLots();
+      }
+    });
+  }, 10000); // Update every 10 seconds
+}
 
 // Update user location marker
 function updateUserLocationMarker() {
-  if (!map || !userLocation) return;
+  if (!map) return;
 
   if (userMarker) {
     userMarker.setPosition(userLocation);
-    // Rotate marker based on heading if available
-    if (currentHeading) {
-      userMarker.setIcon({
-        path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-        scale: 5,
-        rotation: currentHeading,
-        fillColor: '#4facfe',
-        fillOpacity: 1,
-        strokeColor: '#fff',
-        strokeWeight: 1
-      });
-    }
   } else {
     userMarker = new google.maps.Marker({
       position: userLocation,
@@ -792,17 +407,15 @@ function updateUserLocationMarker() {
     });
   }
 
-  // Add accuracy circle based on GPS accuracy
+  // Add accuracy circle
   if (window.accuracyCircle) {
     window.accuracyCircle.setMap(null);
   }
 
-  // Use actual GPS accuracy or fallback to 100 meters
-  const radius = gpsAccuracy || 100;
   window.accuracyCircle = new google.maps.Circle({
     map: map,
     center: userLocation,
-    radius: radius,
+    radius: 100, // 100 meters
     fillColor: '#4facfe',
     fillOpacity: 0.15,
     strokeColor: '#4facfe',
@@ -811,7 +424,6 @@ function updateUserLocationMarker() {
   });
 
   map.setCenter(userLocation);
-  updateDistancesToLots();
 }
 
 function updateMapMarkers() {
@@ -1049,9 +661,6 @@ function signupUser() {
 }
 
 function showNotification(message) {
-  // Log to console as fallback
-  console.log("[Notification]", message);
-  
   const notification = document.getElementById("notification");
   if (notification) {
     notification.textContent = message;
@@ -1799,64 +1408,3 @@ function payOnline() {
 }
 
 // ============ END CLOUD FEATURES ============
-
-// ============ EXIT PARKING INTEGRATION ============
-
-// Store exit data before leaving for exit page
-function initiateExit(bookingId) {
-  if (!bookingId || !db) {
-    showNotification("❌ Cannot initiate exit without booking data");
-    return;
-  }
-  
-  // Fetch booking details from Firebase
-  db.collection('bookings').doc(bookingId).get().then(doc => {
-    if (doc.exists) {
-      const booking = {id: bookingId, ...doc.data()};
-      
-      // Store in localStorage for the exit page
-      localStorage.setItem('exitBooking', JSON.stringify(booking));
-      
-      console.log("[EXIT] Initiating exit for booking:", bookingId);
-      
-      // Navigate to exit page
-      window.location.href = `slot-exit.html?bookingId=${bookingId}`;
-    } else {
-      showNotification("❌ Booking not found");
-    }
-  }).catch(error => {
-    console.error("Error fetching booking:", error);
-    showNotification("❌ Error loading booking data");
-  });
-}
-
-// Handle exit completion and return to parking page
-function handleExitCompletion(bookingId, exitData) {
-  if (!db) return;
-  
-  // Update Firebase with exit data
-  db.collection('bookings').doc(bookingId).update({
-    actualExitTime: new Date(),
-    lateFee: exitData.lateFee || 0,
-    totalAmount: exitData.totalAmount || 0,
-    status: 'ExitComplete'
-  }).then(() => {
-    console.log("[EXIT] Exit recorded successfully");
-    
-    // Save to GPS tracking
-    if (gpsEnabled) {
-      saveGPSSessionData(bookingId);
-    }
-    
-    showNotification("✓ Exit recorded successfully!");
-    
-    // Return to main page after delay
-    setTimeout(() => {
-      window.location.href = 'parking.html';
-    }, 3000);
-  }).catch(error => {
-    console.error("Error recording exit:", error);
-  });
-}
-
-// ============ END EXIT PARKING INTEGRATION ============

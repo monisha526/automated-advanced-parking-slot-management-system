@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Chat Support - Smart Parking</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 600px;
+      height: 80vh;
+      max-height: 800px;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .chat-header h1 {
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+
+    .chat-header p {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: #f8f9fa;
+    }
+
+    .message {
+      margin-bottom: 15px;
+      display: flex;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .message.user {
+      justify-content: flex-end;
+    }
+
+    .message-content {
+      max-width: 70%;
+      padding: 12px 16px;
+      border-radius: 15px;
+      word-wrap: break-word;
+      line-height: 1.4;
+    }
+
+    .message.bot .message-content {
+      background: white;
+      color: #333;
+      border-left: 4px solid #667eea;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+
+    .message.user .message-content {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 15px;
+    }
+
+    .typing-indicator {
+      display: flex;
+      gap: 3px;
+      padding: 12px 16px;
+      background: white;
+      border-radius: 15px;
+      width: fit-content;
+      border-left: 4px solid #667eea;
+    }
+
+    .typing-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #667eea;
+      animation: typing 1.4s infinite;
+    }
+
+    .typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes typing {
+      0%, 60%, 100% {
+        transform: translateY(0);
+      }
+      30% {
+        transform: translateY(-10px);
+      }
+    }
+
+    .input-area {
+      padding: 15px;
+      background: white;
+      border-top: 1px solid #eee;
+      display: flex;
+      gap: 10px;
+    }
+
+    .input-group {
+      flex: 1;
+      display: flex;
+      gap: 10px;
+    }
+
+    #messageInput {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 25px;
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.3s;
+    }
+
+    #messageInput:focus {
+      border-color: #667eea;
+    }
+
+    .send-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: transform 0.2s;
+    }
+
+    .send-btn:hover {
+      transform: scale(1.05);
+    }
+
+    .send-btn:active {
+      transform: scale(0.95);
+    }
+
+    .quick-replies {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      max-width: 70%;
+    }
+
+    .quick-reply-btn {
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      border-radius: 15px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+
+    .quick-reply-btn:hover {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+
+    .back-btn {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      color: #667eea;
+    }
+
+    .back-btn:hover {
+      background: #f0f0f0;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #999;
+      padding: 40px 20px;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+
+    @media (max-width: 600px) {
+      .chat-container {
+        height: 100vh;
+        max-height: none;
+        border-radius: 0;
+      }
+
+      .message-content {
+        max-width: 85%;
+      }
+
+      .back-btn {
+        top: 10px;
+        left: 10px;
+        padding: 8px 12px;
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <button class="back-btn" onclick="window.history.back()">← Back</button>
+
+  <div class="chat-container">
+    <div class="chat-header">
+      <h1>🤖 AI Chat Support</h1>
+      <p>Get instant answers about parking, bookings & payments</p>
+    </div>
+
+    <div class="messages-container" id="messagesContainer">
+      <div class="message bot">
+        <div class="message-content">
+          <strong>Hello! 👋</strong><br>
+          I'm your AI assistant for the Smart Parking System. I can help you with:
+          <div class="quick-replies" style="margin-top: 10px;">
+            <button class="quick-reply-btn" onclick="sendMessage('How do I book a parking spot?')">Booking Guide</button>
+            <button class="quick-reply-btn" onclick="sendMessage('What payment methods are available?')">Payment Options</button>
+            <button class="quick-reply-btn" onclick="sendMessage('How are late fees calculated?')">Late Fees</button>
+            <button class="quick-reply-btn" onclick="sendMessage('How do I cancel my booking?')">Cancellation</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-group">
+        <input 
+          type="text" 
+          id="messageInput" 
+          placeholder="Ask me anything about parking..."
+          autocomplete="off"
+        >
+        <button class="send-btn" onclick="sendMessage()">➤</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="ai-chat.js"></script>
+  <script>
+    // Auto-focus input
+    document.getElementById('messageInput').focus();
+
+    // Send on Enter key
+    document.getElementById('messageInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+  </script>
+</body>
+</html>
